@@ -1,0 +1,30 @@
+# dependencies
+node_modules/
+
+# astro build output
+dist/
+.astro/
+
+# environment / secrets — NEVER commit
+.env
+.env.test
+.env.local
+.env.*.local
+
+# logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# os
+.DS_Store
+Thumbs.db
+
+# playwright artifacts
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/
+
+# local docker volume
+authcore-pgdata/

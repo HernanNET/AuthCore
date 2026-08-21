@@ -1,0 +1,212 @@
+---
+// Phase 1: registration page. Server-side rendering is intentionally minimal;
+// the form is static HTML and talks to /api/auth/* via the client facade.
+---
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Create your account — AuthCore</title>
+  </head>
+  <body>
+    <main class="container">
+      <h1>Create your account</h1>
+
+      <section id="form-section">
+        <form id="register-form" novalidate>
+          <div class="field">
+            <label for="name">Name</label>
+            <input id="name" name="name" type="text" autocomplete="name" required />
+          </div>
+
+          <div class="field">
+            <label for="email">Email</label>
+            <input id="email" name="email" type="email" autocomplete="email" required />
+          </div>
+
+          <div class="field">
+            <label for="password">Password</label>
+            <input id="password" name="password" type="password" autocomplete="new-password" required />
+          </div>
+
+          <div class="field">
+            <label for="confirm-password">Confirm password</label>
+            <input id="confirm-password" name="confirm-password" type="password" autocomplete="new-password" required />
+          </div>
+
+          <p id="error-message" role="alert" hidden></p>
+
+          <button id="register-button" type="submit">Register</button>
+        </form>
+      </section>
+
+      <section id="success-state" hidden>
+        <h2>Registration successful</h2>
+        <p>Your account has been created.</p>
+      </section>
+    </main>
+
+    <style>
+      body {
+        font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+        background: #f6f7f9;
+        color: #111;
+        margin: 0;
+        padding: 2rem;
+      }
+      .container {
+        max-width: 26rem;
+        margin: 2rem auto;
+        background: #fff;
+        border: 1px solid #e3e6ea;
+        border-radius: 10px;
+        padding: 1.75rem;
+      }
+      h1 {
+        font-size: 1.4rem;
+        margin: 0 0 1.25rem;
+      }
+      .field {
+        display: flex;
+        flex-direction: column;
+        margin-bottom: 1rem;
+      }
+      label {
+        font-size: 0.85rem;
+        margin-bottom: 0.35rem;
+        font-weight: 600;
+      }
+      input {
+        padding: 0.6rem 0.7rem;
+        border: 1px solid #c7ccd2;
+        border-radius: 6px;
+        font-size: 1rem;
+      }
+      input:focus {
+        outline: 2px solid #4c6ef5;
+        outline-offset: 1px;
+      }
+      #register-button {
+        width: 100%;
+        padding: 0.7rem;
+        border: 0;
+        border-radius: 6px;
+        background: #4c6ef5;
+        color: #fff;
+        font-size: 1rem;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      #register-button:disabled {
+        background: #9aa4b2;
+        cursor: progress;
+      }
+      #error-message {
+        color: #c92a2a;
+        background: #fff5f5;
+        border: 1px solid #ffd0d0;
+        padding: 0.6rem 0.7rem;
+        border-radius: 6px;
+        margin: 0 0 1rem;
+        font-size: 0.9rem;
+      }
+      #success-state h2 {
+        color: #2b8a3e;
+        margin: 0 0 0.5rem;
+      }
+    </style>
+
+    <script>
+      import { signUp } from "@/lib/auth-facade";
+
+      const form = document.getElementById("register-form") as HTMLFormElement;
+      const button = document.getElementById("register-button") as HTMLButtonElement;
+      const errorEl = document.getElementById("error-message") as HTMLParagraphElement;
+      const formSection = document.getElementById("form-section") as HTMLElement;
+      const successState = document.getElementById("success-state") as HTMLElement;
+
+      const nameInput = document.getElementById("name") as HTMLInputElement;
+      const emailInput = document.getElementById("email") as HTMLInputElement;
+      const passwordInput = document.getElementById("password") as HTMLInputElement;
+      const confirmInput = document.getElementById("confirm-password") as HTMLInputElement;
+
+      const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+      function showError(msg: string): void {
+        errorEl.textContent = msg;
+        errorEl.hidden = false;
+      }
+
+      function clearError(): void {
+        errorEl.textContent = "";
+        errorEl.hidden = true;
+      }
+
+      function mapError(error: { message?: string } | null | undefined): string {
+        const m = (error?.message ?? "").toLowerCase();
+        if (m.includes("already") || m.includes("exists")) return "An account with this email already exists.";
+        if (m.includes("email")) return "Please enter a valid email address.";
+        if (m.includes("password")) return "Password must be at least 8 characters.";
+        if (m.includes("name")) return "Please enter your name.";
+        return "Registration failed. Please try again.";
+      }
+
+      let submitting = false;
+
+      form.addEventListener("submit", async (e: SubmitEvent) => {
+        e.preventDefault();
+        clearError();
+        if (submitting) return;
+
+        const name = nameInput.value.trim();
+        const email = emailInput.value.trim();
+        const password = passwordInput.value;
+        const confirm = confirmInput.value;
+
+        if (!name) {
+          showError("Please enter your name.");
+          nameInput.focus();
+          return;
+        }
+        if (!EMAIL_RE.test(email)) {
+          showError("Please enter a valid email address.");
+          emailInput.focus();
+          return;
+        }
+        if (!password || password.length < 8) {
+          showError("Password must be at least 8 characters.");
+          passwordInput.focus();
+          return;
+        }
+        if (password !== confirm) {
+          showError("Passwords do not match.");
+          confirmInput.focus();
+          return;
+        }
+
+        submitting = true;
+        button.disabled = true;
+        button.textContent = "Creating…";
+
+        try {
+          const { error } = await signUp({ name, email, password });
+          if (error) {
+            showError(mapError(error));
+            button.disabled = false;
+            button.textContent = "Register";
+            submitting = false;
+            return;
+          }
+          formSection.hidden = true;
+          successState.hidden = false;
+        } catch (err) {
+          showError("Registration failed. Please try again.");
+          button.disabled = false;
+          button.textContent = "Register";
+          submitting = false;
+        }
+      });
+    </script>
+  </body>
+</html>
