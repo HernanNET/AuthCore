@@ -3,13 +3,14 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Standalone authentication module (Better Auth + PostgreSQL) — Phases 1–19.",
+  "description": "Standalone authentication module (Better Auth + PostgreSQL) — Phases 1–21.",
+  "packageManager": "pnpm@11.6.0",
   "scripts": {
     "dev": "astro dev",
     "build": "astro build",
     "preview": "astro preview",
     "check": "astro check",
-    "start": "node ./dist/server/entry.mjs",
+    "start": "node ./scripts/start-production.mjs",
     "db:up": "docker compose up -d",
     "db:down": "docker compose down",
     "db:migrate": "tsx scripts/migrate.ts",
@@ -20,7 +21,8 @@
     "test:e2e": "cross-env AUTH_ENV=test playwright test && cross-env AUTH_ENV=development playwright test --config=playwright.config.production.ts",
     "test:e2e:main": "cross-env AUTH_ENV=test playwright test",
     "test:e2e:prod": "cross-env AUTH_ENV=development playwright test --config=playwright.config.production.ts",
-    "test:e2e:ui": "cross-env AUTH_ENV=test playwright test --ui"
+    "test:e2e:ui": "cross-env AUTH_ENV=test playwright test --ui",
+    "test:container": "node scripts/verify-container.mjs"
   },
   "dependencies": {
     "@astrojs/node": "^11.1.4",

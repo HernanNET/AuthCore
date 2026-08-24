@@ -3,8 +3,13 @@ import {
   applySecurityHeaders,
   isSensitivePath,
 } from "../../src/lib/security-headers";
+import { cleanupTestUsers, closeDb } from "../helpers/db";
 
 const BASE = process.env.AUTHCORE_TEST_URL ?? "http://localhost:4321";
+
+test.beforeEach(async () => { await cleanupTestUsers(); });
+test.afterEach(async () => { await cleanupTestUsers(); });
+test.afterAll(async () => { await closeDb(); });
 
 test("1 — every public page receives the browser hardening headers", async ({ request }) => {
   const response = await request.get("/login");

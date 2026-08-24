@@ -10,4 +10,8 @@ import { test, expect } from "@playwright/test";
 test("14 — test mailbox endpoint blocked in production mode", async () => {
   const res = await fetch("http://127.0.0.1:4322/api/test/captured-verification-emails?to=any@example.test");
   expect(res.status).toBe(404);
+
+  const health = await fetch("http://127.0.0.1:4322/api/health");
+  expect(health.status).toBe(200);
+  expect(await health.json()).toEqual({ status: "ok" });
 });

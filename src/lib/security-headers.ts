@@ -33,7 +33,10 @@ export function applySecurityHeaders(
   headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
   headers.set("X-DNS-Prefetch-Control", "off");
   headers.set("Cross-Origin-Opener-Policy", "same-origin-allow-popups");
-  if (!headers.has("Content-Security-Policy")) {
+  if (
+    !headers.has("Content-Security-Policy") &&
+    headers.get("Content-Type")?.toLowerCase().includes("text/html")
+  ) {
     headers.set("Content-Security-Policy", DEVELOPMENT_CSP);
   }
   headers.set(

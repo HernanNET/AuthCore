@@ -4,7 +4,7 @@ const testPort = Number(process.env.AUTHCORE_TEST_PORT ?? 4321);
 const testBaseURL = `http://localhost:${testPort}`;
 
 /**
- * Playwright config for AuthCore Phases 1–19 — main test suite.
+ * Playwright config for AuthCore Phases 1–21 — main test suite.
  * Runs against the isolated TEST-mode server/database on port 4321.
  */
 export default defineConfig({

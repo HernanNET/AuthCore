@@ -6,7 +6,7 @@ const BASE = process.env.AUTHCORE_TEST_URL ?? "http://localhost:4321";
 const STRICT = "x-authcore-test-rate-limit";
 
 function headers(ip: string) {
-  return { [STRICT]: "strict", "x-forwarded-for": ip };
+  return { [STRICT]: "strict", "x-authcore-test-client-ip": ip };
 }
 
 async function attemptLogin(request: APIRequestContext, ip: string) {

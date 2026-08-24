@@ -11,8 +11,23 @@ import dotenv from "dotenv";
  * in the SSR bundle. `override: true` guarantees the chosen file wins even if a
  * parent process already injected values.
  */
-const envFile = process.env.AUTH_ENV === "test" ? ".env.test" : ".env";
-dotenv.config({ path: envFile, override: true });
+const AUTH_ENV_VALUES = ["development", "test", "production"] as const;
+type AuthEnvironment = (typeof AUTH_ENV_VALUES)[number];
+
+const rawAuthEnv = process.env.AUTH_ENV ?? "development";
+if (!AUTH_ENV_VALUES.includes(rawAuthEnv as AuthEnvironment)) {
+  throw new Error(
+    `Invalid AUTH_ENV: "${rawAuthEnv}". Expected development, test, or production.`,
+  );
+}
+const authEnvironment = rawAuthEnv as AuthEnvironment;
+const envFile = authEnvironment === "test" ? ".env.test" : ".env";
+
+// Production receives secrets from the deployment platform. Loading a local
+// file there could silently replace a rotated secret with a developer value.
+if (authEnvironment !== "production") {
+  dotenv.config({ path: envFile, override: true });
+}
 
 function required(name: string): string {
   const value = process.env[name];
@@ -48,15 +63,69 @@ function optional(name: string): string {
   return process.env[name] ?? "";
 }
 
+export function validateRuntimeConfig(input: {
+  authEnvironment: AuthEnvironment;
+  baseURL: string;
+  secret: string;
+  proxyMode: string;
+  googleClientId: string;
+  googleClientSecret: string;
+}): { origin: string; secureOrigin: boolean; proxyMode: "direct" | "cloudflare" } {
+  let url: URL;
+  try {
+    url = new URL(input.baseURL);
+  } catch {
+    throw new Error("BETTER_AUTH_URL must be a valid absolute URL.");
+  }
+  if (url.username || url.password || url.search || url.hash || url.pathname !== "/") {
+    throw new Error("BETTER_AUTH_URL must contain only the public origin.");
+  }
+  if (!(["direct", "cloudflare"] as const).includes(input.proxyMode as "direct" | "cloudflare")) {
+    throw new Error('AUTHCORE_PROXY_MODE must be either "direct" or "cloudflare".');
+  }
+  if (input.secret.length < 32) {
+    throw new Error("BETTER_AUTH_SECRET must contain at least 32 characters.");
+  }
+  if (Boolean(input.googleClientId) !== Boolean(input.googleClientSecret)) {
+    throw new Error("GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET must be configured together.");
+  }
+  if (input.authEnvironment === "production") {
+    const loopback = new Set(["localhost", "127.0.0.1", "::1"]);
+    if (url.protocol !== "https:" || loopback.has(url.hostname)) {
+      throw new Error("Production BETTER_AUTH_URL must use HTTPS and a non-loopback host.");
+    }
+  }
+  return {
+    origin: url.origin,
+    secureOrigin: url.protocol === "https:",
+    proxyMode: input.proxyMode as "direct" | "cloudflare",
+  };
+}
+
+const betterAuthURL =
+  authEnvironment === "test" && process.env.AUTHCORE_TEST_URL
+    ? process.env.AUTHCORE_TEST_URL
+    : required("BETTER_AUTH_URL");
+const googleClientId = optional("GOOGLE_CLIENT_ID");
+const googleClientSecret = optional("GOOGLE_CLIENT_SECRET");
+const runtime = validateRuntimeConfig({
+  authEnvironment,
+  baseURL: betterAuthURL,
+  secret: required("BETTER_AUTH_SECRET"),
+  proxyMode: optional("AUTHCORE_PROXY_MODE") || "direct",
+  googleClientId,
+  googleClientSecret,
+});
+
 export const env = {
-  AUTH_ENV: process.env.AUTH_ENV ?? "development",
+  AUTH_ENV: authEnvironment,
   BETTER_AUTH_SECRET: required("BETTER_AUTH_SECRET"),
   // Playwright may use an alternate local port when a manual dev server is open.
   // This test-only override never changes the database or secret selected above.
-  BETTER_AUTH_URL:
-    process.env.AUTH_ENV === "test" && process.env.AUTHCORE_TEST_URL
-      ? process.env.AUTHCORE_TEST_URL
-      : required("BETTER_AUTH_URL"),
+  BETTER_AUTH_URL: betterAuthURL,
+  BETTER_AUTH_ORIGIN: runtime.origin,
+  AUTHCORE_PROXY_MODE: runtime.proxyMode,
+  isSecureOrigin: runtime.secureOrigin,
   DATABASE_URL: required("DATABASE_URL"),
   EMAIL_VERIFICATION_EXPIRES_IN_SECONDS: requiredInt(
     "EMAIL_VERIFICATION_EXPIRES_IN_SECONDS",
@@ -70,8 +139,8 @@ export const env = {
     "ACCOUNT_DELETION_EXPIRES_IN_SECONDS",
     3600,
   ),
-  GOOGLE_CLIENT_ID: optional("GOOGLE_CLIENT_ID"),
-  GOOGLE_CLIENT_SECRET: optional("GOOGLE_CLIENT_SECRET"),
+  GOOGLE_CLIENT_ID: googleClientId,
+  GOOGLE_CLIENT_SECRET: googleClientSecret,
   /** True only when AUTH_ENV === "test". Test-only endpoints fail closed otherwise. */
-  isTestMode: process.env.AUTH_ENV === "test",
+  isTestMode: authEnvironment === "test",
 } as const;

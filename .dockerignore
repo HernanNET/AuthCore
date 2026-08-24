@@ -1,0 +1,25 @@
+**
+!package.json
+!pnpm-lock.yaml
+!pnpm-workspace.yaml
+!astro.config.mjs
+!tsconfig.json
+!src/
+!src/**
+!scripts/
+!scripts/**
+!public/
+!public/**
+
+# Defense in depth: local secrets, databases, VCS, tests, and build artifacts
+# must never enter the Docker build context.
+.env
+.env.*
+.git
+.astro
+dist
+node_modules
+tests
+test-results
+playwright-report
+*.log

@@ -1,5 +1,7 @@
 import type { APIRoute } from "astro";
 import { auth } from "@/lib/auth";
+import { resolveClientIp, withTrustedClientIp } from "@/lib/client-ip";
+import { env } from "@/lib/env";
 import {
   recordSecurityEvent,
   requestMetadata,
@@ -30,11 +32,30 @@ const ADMIN_TARGET_EVENTS: Readonly<Record<string, SecurityEventType>> = {
  * Better Auth validates methods and bodies, and rejects malformed requests.
  */
 export const ALL: APIRoute = async (ctx) => {
-  const authPath = new URL(ctx.request.url).pathname.replace(/^\/api\/auth/, "");
+  let directAddress: string | null = null;
+  try {
+    directAddress = ctx.clientAddress;
+  } catch {
+    directAddress = null;
+  }
+  let clientIp = resolveClientIp({
+    headers: ctx.request.headers,
+    directAddress,
+    proxyMode: env.AUTHCORE_PROXY_MODE,
+  });
+  if (env.isTestMode && ctx.request.headers.has("x-authcore-test-client-ip")) {
+    clientIp = resolveClientIp({
+      headers: new Headers(),
+      directAddress: ctx.request.headers.get("x-authcore-test-client-ip"),
+      proxyMode: "direct",
+    });
+  }
+  const trustedRequest = withTrustedClientIp(ctx.request, clientIp);
+  const authPath = new URL(trustedRequest.url).pathname.replace(/^\/api\/auth/, "");
   const targetEventType = ADMIN_TARGET_EVENTS[authPath];
-  const requestCopy = targetEventType ? ctx.request.clone() : null;
-  const sessionBefore = await auth.api.getSession({ headers: ctx.request.headers });
-  const response = await auth.handler(ctx.request);
+  const requestCopy = targetEventType ? trustedRequest.clone() : null;
+  const sessionBefore = await auth.api.getSession({ headers: trustedRequest.headers });
+  const response = await auth.handler(trustedRequest);
   const eventType = SUCCESS_EVENTS[authPath];
 
   if (response.ok && sessionBefore && eventType) {
@@ -43,7 +64,7 @@ export const ALL: APIRoute = async (ctx) => {
     await recordSecurityEvent({
       userId: sessionBefore.user.id,
       type: eventType,
-      ...requestMetadata(ctx.request.headers, sessionBefore.session.ipAddress),
+      ...requestMetadata(trustedRequest.headers, sessionBefore.session.ipAddress),
     });
   }
 
@@ -53,7 +74,7 @@ export const ALL: APIRoute = async (ctx) => {
       await recordSecurityEvent({
         userId: body.userId,
         type: targetEventType,
-        ...requestMetadata(ctx.request.headers, sessionBefore.session.ipAddress),
+        ...requestMetadata(trustedRequest.headers, sessionBefore.session.ipAddress),
       });
     }
   }

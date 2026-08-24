@@ -9,7 +9,7 @@ so consuming applications never touch Better Auth internals.
 App  ->  Auth Module (facade)  ->  Better Auth  ->  PostgreSQL
 ```
 
-## Current scope (Phases 1–19)
+## Current scope (Phases 1–21)
 
 - **Phase 1**: Registration (name, email, password, confirm)
 - **Phase 2**: Email verification (native Better Auth, captured mailbox for dev/test)
@@ -30,6 +30,53 @@ App  ->  Auth Module (facade)  ->  Better Auth  ->  PostgreSQL
 - **Phase 17**: Server-enforced user/admin roles and protected administration boundary
 - **Phase 18**: Least-privilege user search, blocking, unblocking, and session revocation
 - **Phase 19**: HTTP security headers, hashed CSP, cache protection, and HTTPS-only HSTS
+- **Phase 20**: Production runtime validation, trusted client IPs, secure cookies, and readiness
+- **Phase 21**: Reproducible non-root Docker image, migrations, healthcheck, and graceful shutdown
+
+## Container deployment
+
+The multi-stage `Dockerfile` installs dependencies from the frozen pnpm lock,
+builds Astro without copying any `.env` file, and produces a runtime owned by
+the unprivileged `node` user. The final image has an executable healthcheck and
+receives `SIGTERM` directly; AuthCore drains HTTP traffic for up to 10 seconds.
+
+`docker-compose.production.yml` runs database migrations as a one-shot,
+non-root service before starting AuthCore. The application filesystem is
+read-only, Linux capabilities are dropped, privilege escalation is disabled,
+and port 4321 is published only on the host loopback interface.
+
+```powershell
+Copy-Item .env.production.example .env.production
+# Fill every required AUTHCORE_PROD_* value, then:
+docker compose --env-file .env.production -f docker-compose.production.yml build
+docker compose --env-file .env.production -f docker-compose.production.yml up -d
+docker compose --env-file .env.production -f docker-compose.production.yml ps
+```
+
+Always pass the explicit production env file. The Compose variables use the
+`AUTHCORE_PROD_*` prefix so values from the local development `.env` cannot
+silently satisfy production requirements. Real `.env.production` files are
+gitignored and excluded from the Docker build context.
+
+## Production runtime
+
+Production must inject environment variables through the deployment platform;
+AuthCore deliberately does not load `.env` when `AUTH_ENV=production`. Startup
+fails closed unless the public auth URL is HTTPS, non-loopback, origin-only, and
+the auth secret contains at least 32 characters. Google OAuth credentials must
+be supplied as a complete ID/secret pair.
+
+- Use `AUTHCORE_PROXY_MODE=direct` when Node receives internet traffic directly.
+  Requests containing forwarding headers are then excluded from IP tracking.
+- Use `AUTHCORE_PROXY_MODE=cloudflare` only when the origin firewall allows
+  Cloudflare traffic exclusively. AuthCore validates the single
+  `CF-Connecting-IP` value and replaces any browser-supplied internal header.
+- Better Auth receives only `X-AuthCore-Client-IP`, generated inside the server,
+  for persistent rate limiting and security activity.
+- HTTPS origins force Better Auth's `Secure` cookies. CSRF and trusted-origin
+  validation remain explicitly enabled.
+- `GET /api/health` checks PostgreSQL readiness and returns only `{"status":"ok"}`
+  or a generic HTTP 503 response; `HEAD` is also supported.
 
 ## Roles and administration
 
@@ -388,10 +435,13 @@ Playwright runs against the **test** database only:
 src/
   lib/
     env.ts             # server-only env loading + validation
+    client-ip.ts       # trusted direct/Cloudflare client-IP resolution
+    security-headers.ts # shared browser and transport hardening
     auth.ts            # Better Auth server instance (owns PG connection)
     auth-facade.ts     # client facade (signUp/signIn/reset...) — no server secrets
   pages/
     api/auth/[...all].ts  # Better Auth catch-all handler (/api/auth/*)
+    api/health.ts         # generic PostgreSQL readiness probe
     register.astro        # registration page
     forgot-password.astro # generic reset request UI
     reset-password.astro  # one-time-token password update UI
@@ -409,6 +459,7 @@ src/
     admin.astro          # least-privilege administrative user management
     index.astro           # redirects to /register
   env.d.ts
+  middleware.ts        # applies security headers to every response
 scripts/
   migrate.ts          # programmatic Better Auth migrations
 tests/

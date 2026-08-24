@@ -157,13 +157,9 @@ export async function listSecurityEvents(userId: string, limit = 50): Promise<Se
 }
 
 export function requestMetadata(headers: Headers, fallbackIp?: string | null) {
-  const forwarded = headers.get("x-forwarded-for");
-  const singleForwarded = forwarded && !forwarded.includes(",") ? forwarded.trim() : null;
   return {
     ipAddress:
-      headers.get("cf-connecting-ip")?.trim() ||
-      headers.get("x-real-ip")?.trim() ||
-      singleForwarded ||
+      headers.get("x-authcore-client-ip")?.trim() ||
       fallbackIp ||
       null,
     userAgent: headers.get("user-agent")?.trim() || null,

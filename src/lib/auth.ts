@@ -19,7 +19,7 @@ import {
  *   user, account, session, verification (+ any internal tables Better Auth
  *   requires). No second user database is used.
  *
- * Phase 19 scope: registration + email verification + email/password login +
+ * Phase 20 scope: registration + email verification + email/password login +
  *   Google OAuth + forgot/reset password.
  *   - Google provider uses native Better Auth OAuth (no manual code exchange).
  *   - Google credentials are server-only (GOOGLE_CLIENT_SECRET never in client).
@@ -69,6 +69,7 @@ if (env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET) {
 export const auth = betterAuth({
   appName: "AuthCore",
   baseURL: env.BETTER_AUTH_URL,
+  trustedOrigins: [env.BETTER_AUTH_ORIGIN],
   secret: env.BETTER_AUTH_SECRET,
   database: pool,
   user: {
@@ -150,6 +151,15 @@ export const auth = betterAuth({
       "/request-password-reset": protectedRateLimit({ window: 300, max: 3 }),
       "/two-factor/*": protectedRateLimit({ window: 60, max: 5 }),
       "/passkey/*": protectedRateLimit({ window: 60, max: 20 }),
+    },
+  },
+  advanced: {
+    useSecureCookies: env.isSecureOrigin,
+    disableCSRFCheck: false,
+    disableOriginCheck: false,
+    ipAddress: {
+      ipAddressHeaders: ["x-authcore-client-ip"],
+      ipv6Subnet: 64,
     },
   },
   databaseHooks: {

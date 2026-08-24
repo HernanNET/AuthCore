@@ -1,0 +1,49 @@
+x-authcore-environment: &authcore-environment
+  AUTH_ENV: production
+  BETTER_AUTH_URL: ${AUTHCORE_PROD_BETTER_AUTH_URL:?Set AUTHCORE_PROD_BETTER_AUTH_URL}
+  BETTER_AUTH_SECRET: ${AUTHCORE_PROD_BETTER_AUTH_SECRET:?Set AUTHCORE_PROD_BETTER_AUTH_SECRET}
+  DATABASE_URL: ${AUTHCORE_PROD_DATABASE_URL:?Set AUTHCORE_PROD_DATABASE_URL}
+  AUTHCORE_PROXY_MODE: ${AUTHCORE_PROD_PROXY_MODE:-cloudflare}
+  GOOGLE_CLIENT_ID: ${AUTHCORE_PROD_GOOGLE_CLIENT_ID:-}
+  GOOGLE_CLIENT_SECRET: ${AUTHCORE_PROD_GOOGLE_CLIENT_SECRET:-}
+  EMAIL_VERIFICATION_EXPIRES_IN_SECONDS: ${AUTHCORE_PROD_EMAIL_VERIFICATION_EXPIRES_IN_SECONDS:-3600}
+  PASSWORD_RESET_EXPIRES_IN_SECONDS: ${AUTHCORE_PROD_PASSWORD_RESET_EXPIRES_IN_SECONDS:-3600}
+  ACCOUNT_DELETION_EXPIRES_IN_SECONDS: ${AUTHCORE_PROD_ACCOUNT_DELETION_EXPIRES_IN_SECONDS:-3600}
+
+services:
+  migrate:
+    build:
+      context: .
+      target: migration
+    environment: *authcore-environment
+    restart: "no"
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=32m
+      - /app/.astro:rw,noexec,nosuid,size=16m,uid=1000,gid=1000,mode=0700
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+  authcore:
+    build:
+      context: .
+      target: runtime
+    environment: *authcore-environment
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    init: true
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${AUTHCORE_HOST_PORT:-4321}:4321"
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=32m
+      - /app/.astro:rw,noexec,nosuid,size=16m,uid=1000,gid=1000,mode=0700
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    stop_grace_period: 15s
