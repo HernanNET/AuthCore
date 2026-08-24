@@ -1,0 +1,76 @@
+---
+/**
+ * Email verification result page.
+ *
+ * Better Auth's native /api/auth/verify-email redirects here:
+ *   - Success: /verify-email?status=success   (callbackURL we passed on sign-up)
+ *   - Invalid: /verify-email?status=success&error=invalid_token
+ *   - Expired: /verify-email?status=success&error=token_expired
+ *
+ * The page shows a safe, generic message. It never displays the token, JWT
+ * payload, database details, or stack traces. If Better Auth cannot reliably
+ * distinguish expired vs invalid at the public level, we show one generic
+ * failure message.
+ */
+const status = Astro.url.searchParams.get("status");
+const error = Astro.url.searchParams.get("error");
+
+const isSuccess = status === "success" && !error;
+const isError = !!error;
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Email verification — AuthCore</title>
+  </head>
+  <body>
+    <main class="container">
+      {isSuccess && (
+        <section id="verify-success">
+          <h1>Email verified</h1>
+          <p>Your email has been verified successfully. Your account is now verified.</p>
+          <p class="muted">You are not signed in. No session was created.</p>
+        </section>
+      )}
+
+      {isError && (
+        <section id="verify-error">
+          <h1>Verification failed</h1>
+          <p>The verification link is invalid or has expired. Please request a new verification email.</p>
+        </section>
+      )}
+
+      {!isSuccess && !isError && (
+        <section id="verify-neutral">
+          <h1>Email verification</h1>
+          <p class="muted">Use the link from your verification email to verify your account.</p>
+        </section>
+      )}
+    </main>
+
+    <style>
+      body {
+        font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+        background: #f6f7f9;
+        color: #111;
+        margin: 0;
+        padding: 2rem;
+      }
+      .container {
+        max-width: 26rem;
+        margin: 2rem auto;
+        background: #fff;
+        border: 1px solid #e3e6ea;
+        border-radius: 10px;
+        padding: 1.75rem;
+      }
+      h1 { font-size: 1.4rem; margin: 0 0 1rem; }
+      #verify-success h1 { color: #2b8a3e; }
+      #verify-error h1 { color: #c92a2a; }
+      .muted { color: #6c757d; font-size: 0.9rem; }
+    </style>
+  </body>
+</html>

@@ -1,0 +1,197 @@
+---
+import { getCurrentSession } from "@/lib/session";
+
+const session = await getCurrentSession(Astro.request.headers);
+if (!session) {
+  return Astro.redirect("/login");
+}
+---
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Passkeys — AuthCore</title>
+  </head>
+  <body>
+    <main class="container">
+      <h1>Passkeys</h1>
+      <p class="muted">Use Windows Hello, a phone, or a security key to sign in without a password.</p>
+
+      <form id="add-form">
+        <label for="passkey-name">Passkey name</label>
+        <input id="passkey-name" name="name" type="text" maxlength="80" placeholder="This Windows PC" autocomplete="off" />
+        <button id="add-button" type="submit">Add a passkey</button>
+      </form>
+
+      <p id="error-message" class="message error" role="alert" hidden></p>
+      <p id="success-message" class="message success" role="status" hidden></p>
+      <p id="unsupported-message" class="message error" role="alert" hidden>
+        Passkeys are not supported by this browser or device.
+      </p>
+
+      <section aria-labelledby="saved-heading">
+        <h2 id="saved-heading">Saved passkeys</h2>
+        <p id="loading-message" class="muted">Loading…</p>
+        <p id="empty-message" class="muted" hidden>No passkeys have been added yet.</p>
+        <ul id="passkey-list"></ul>
+      </section>
+
+      <a class="back-link" href="/account">Back to account</a>
+    </main>
+
+    <style>
+      body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; background: #f6f7f9; color: #111; margin: 0; padding: 2rem; }
+      .container { max-width: 32rem; margin: 2rem auto; background: #fff; border: 1px solid #e3e6ea; border-radius: 10px; padding: 1.75rem; }
+      h1 { font-size: 1.4rem; margin: 0 0 0.5rem; }
+      h2 { font-size: 1.05rem; margin: 1.75rem 0 0.75rem; }
+      .muted { color: #6c757d; font-size: 0.9rem; }
+      form { display: grid; gap: 0.65rem; margin-top: 1.25rem; }
+      label { font-size: 0.85rem; font-weight: 600; }
+      input { padding: 0.65rem 0.7rem; border: 1px solid #c7ccd2; border-radius: 6px; font-size: 1rem; }
+      input:focus { outline: 2px solid #4c6ef5; outline-offset: 1px; }
+      button { padding: 0.68rem; border: 1px solid #4c6ef5; border-radius: 6px; background: #4c6ef5; color: #fff; font-size: 0.95rem; font-weight: 600; cursor: pointer; }
+      button:disabled { opacity: 0.6; cursor: progress; }
+      .message { padding: 0.65rem 0.75rem; border-radius: 6px; font-size: 0.9rem; }
+      .error { color: #c92a2a; background: #fff5f5; border: 1px solid #ffd0d0; }
+      .success { color: #2b8a3e; background: #ebfbee; border: 1px solid #b2f2bb; }
+      ul { list-style: none; padding: 0; margin: 0; display: grid; gap: 0.75rem; }
+      li { border: 1px solid #e3e6ea; border-radius: 8px; padding: 0.85rem; }
+      .passkey-title { font-weight: 700; margin: 0 0 0.25rem; overflow-wrap: anywhere; }
+      .passkey-meta { color: #6c757d; font-size: 0.82rem; margin: 0 0 0.65rem; }
+      .actions { display: flex; gap: 0.5rem; }
+      .actions button { flex: 1; background: #fff; color: #364fc7; }
+      .actions .delete { border-color: #c92a2a; color: #c92a2a; }
+      .back-link { display: block; margin-top: 1.5rem; color: #4c6ef5; text-align: center; text-decoration: none; }
+    </style>
+
+    <script>
+      import { addPasskey, deletePasskey, listPasskeys, renamePasskey } from "@/lib/auth-facade";
+
+      const form = document.getElementById("add-form") as HTMLFormElement;
+      const nameInput = document.getElementById("passkey-name") as HTMLInputElement;
+      const addButton = document.getElementById("add-button") as HTMLButtonElement;
+      const list = document.getElementById("passkey-list") as HTMLUListElement;
+      const loading = document.getElementById("loading-message") as HTMLParagraphElement;
+      const empty = document.getElementById("empty-message") as HTMLParagraphElement;
+      const errorEl = document.getElementById("error-message") as HTMLParagraphElement;
+      const successEl = document.getElementById("success-message") as HTMLParagraphElement;
+      const unsupportedEl = document.getElementById("unsupported-message") as HTMLParagraphElement;
+
+      function clearMessages(): void {
+        errorEl.hidden = true;
+        successEl.hidden = true;
+        errorEl.textContent = "";
+        successEl.textContent = "";
+      }
+
+      function showError(message: string): void {
+        clearMessages();
+        errorEl.textContent = message;
+        errorEl.hidden = false;
+      }
+
+      function showSuccess(message: string): void {
+        clearMessages();
+        successEl.textContent = message;
+        successEl.hidden = false;
+      }
+
+      function formatDate(value: Date | string | null | undefined): string {
+        if (!value) return "Date unavailable";
+        const date = new Date(value);
+        return Number.isNaN(date.getTime()) ? "Date unavailable" : `Added ${date.toLocaleString()}`;
+      }
+
+      async function refresh(): Promise<void> {
+        const result = await listPasskeys();
+        loading.hidden = true;
+        list.replaceChildren();
+        if (result.error) {
+          showError("Unable to load passkeys.");
+          return;
+        }
+
+        const passkeys = result.data ?? [];
+        empty.hidden = passkeys.length !== 0;
+        for (const passkey of passkeys) {
+          const item = document.createElement("li");
+          item.dataset.passkeyId = passkey.id;
+
+          const title = document.createElement("p");
+          title.className = "passkey-title";
+          title.textContent = passkey.name || "Unnamed passkey";
+
+          const meta = document.createElement("p");
+          meta.className = "passkey-meta";
+          meta.textContent = formatDate(passkey.createdAt);
+
+          const actions = document.createElement("div");
+          actions.className = "actions";
+
+          const renameButton = document.createElement("button");
+          renameButton.type = "button";
+          renameButton.textContent = "Rename";
+          renameButton.addEventListener("click", async () => {
+            const name = window.prompt("New passkey name", passkey.name || "");
+            if (name === null) return;
+            const trimmed = name.trim();
+            if (!trimmed || trimmed.length > 80) {
+              showError("Enter a name between 1 and 80 characters.");
+              return;
+            }
+            const updated = await renamePasskey(passkey.id, trimmed);
+            if (updated.error) return showError("Unable to rename this passkey.");
+            showSuccess("Passkey renamed.");
+            await refresh();
+          });
+
+          const deleteButton = document.createElement("button");
+          deleteButton.type = "button";
+          deleteButton.className = "delete";
+          deleteButton.textContent = "Delete";
+          deleteButton.addEventListener("click", async () => {
+            if (!window.confirm("Delete this passkey? This cannot be undone.")) return;
+            const removed = await deletePasskey(passkey.id);
+            if (removed.error) return showError("Unable to delete this passkey.");
+            showSuccess("Passkey deleted.");
+            await refresh();
+          });
+
+          actions.append(renameButton, deleteButton);
+          item.append(title, meta, actions);
+          list.append(item);
+        }
+      }
+
+      if (!("PublicKeyCredential" in window)) {
+        unsupportedEl.hidden = false;
+        form.hidden = true;
+      }
+
+      form.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        clearMessages();
+        addButton.disabled = true;
+        addButton.textContent = "Waiting for your device…";
+        try {
+          const result = await addPasskey(nameInput.value);
+          if (result.error) {
+            showError("Passkey creation was cancelled or could not be completed.");
+            return;
+          }
+          nameInput.value = "";
+          showSuccess("Passkey added successfully.");
+          await refresh();
+        } catch {
+          showError("Passkey creation is unavailable in this browser.");
+        } finally {
+          addButton.disabled = false;
+          addButton.textContent = "Add a passkey";
+        }
+      });
+
+      void refresh();
+    </script>
+  </body>
+</html>

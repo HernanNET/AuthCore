@@ -42,8 +42,8 @@
       </section>
 
       <section id="success-state" hidden>
-        <h2>Registration successful</h2>
-        <p>Your account has been created.</p>
+        <h2>Check your email</h2>
+        <p>Your account has been created. Check your email to verify your account.</p>
       </section>
     </main>
 
@@ -143,7 +143,8 @@
         errorEl.hidden = true;
       }
 
-      function mapError(error: { message?: string } | null | undefined): string {
+      function mapError(error: { message?: string; status?: number } | null | undefined): string {
+        if (error?.status === 429) return "Too many registration attempts. Please wait before trying again.";
         const m = (error?.message ?? "").toLowerCase();
         if (m.includes("already") || m.includes("exists")) return "An account with this email already exists.";
         if (m.includes("email")) return "Please enter a valid email address.";

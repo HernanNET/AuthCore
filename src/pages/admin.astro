@@ -1,0 +1,195 @@
+---
+import { auth } from "@/lib/auth";
+import { requireAdminUser } from "@/lib/session";
+
+const authorization = await requireAdminUser(Astro);
+if (authorization instanceof Response) return authorization;
+
+const rawSearch = Astro.url.searchParams.get("q")?.trim().slice(0, 100) ?? "";
+const requestedField = Astro.url.searchParams.get("field");
+const searchField = requestedField === "name" ? "name" : "email";
+const requestedPage = Number.parseInt(Astro.url.searchParams.get("page") ?? "1", 10);
+const currentPage = Number.isSafeInteger(requestedPage) && requestedPage > 0 ? requestedPage : 1;
+const pageSize = 20;
+const offset = (currentPage - 1) * pageSize;
+
+// Better Auth revalidates the cookie and the admin permission server-side.
+// No raw session token or privileged database query reaches the browser.
+const result = await auth.api.listUsers({
+  headers: Astro.request.headers,
+  query: {
+    limit: pageSize,
+    offset,
+    sortBy: "createdAt",
+    sortDirection: "desc",
+    searchValue: rawSearch || undefined,
+    searchField,
+    searchOperator: "contains",
+  },
+});
+
+const totalPages = Math.max(1, Math.ceil(result.total / pageSize));
+const makePageUrl = (page: number) => {
+  const params = new URLSearchParams();
+  if (rawSearch) params.set("q", rawSearch);
+  params.set("field", searchField);
+  params.set("page", String(page));
+  return `/admin?${params.toString()}`;
+};
+---
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width" />
+    <title>Administration — AuthCore</title>
+  </head>
+  <body>
+    <main class="container">
+      <h1>Administration</h1>
+      <p class="muted">Search users, block access, or revoke sessions. Authorization is checked on the server.</p>
+
+      <form class="search-form" method="get" action="/admin">
+        <label for="search-field">Search by</label>
+        <select id="search-field" name="field">
+          <option value="email" selected={searchField === "email"}>Email</option>
+          <option value="name" selected={searchField === "name"}>Name</option>
+        </select>
+        <input id="search-query" name="q" type="search" maxlength="100" value={rawSearch} />
+        <button type="submit">Search</button>
+      </form>
+
+      <p id="action-message" class="message" role="status" aria-live="polite"></p>
+
+      <p id="user-count"><strong>Total users:</strong> {result.total}</p>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Email</th>
+              <th>Role</th>
+              <th>Verified</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {result.users.map((user) => (
+              <tr data-user-email={user.email} data-user-id={user.id}>
+                <td>{user.name}</td>
+                <td>{user.email}</td>
+                <td>{user.role ?? "user"}</td>
+                <td>{user.emailVerified ? "Yes" : "No"}</td>
+                <td class="user-status">{user.banned ? "Blocked" : "Active"}</td>
+                <td class="actions">
+                  {user.id === authorization.user.id || (user.role ?? "user").split(",").includes("admin") ? (
+                    <span class="protected-label">Protected admin</span>
+                  ) : (
+                    <>
+                      {user.banned ? (
+                        <button class="action-button" data-action="unban" data-user-id={user.id} data-user-email={user.email}>Unblock</button>
+                      ) : (
+                        <button class="action-button danger" data-action="ban" data-user-id={user.id} data-user-email={user.email}>Block</button>
+                      )}
+                      <button class="action-button" data-action="revoke" data-user-id={user.id} data-user-email={user.email}>Revoke sessions</button>
+                    </>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <nav class="pagination" aria-label="User pages">
+        {currentPage > 1 && <a id="previous-page" href={makePageUrl(currentPage - 1)}>Previous</a>}
+        <span>Page {currentPage} of {totalPages}</span>
+        {currentPage < totalPages && <a id="next-page" href={makePageUrl(currentPage + 1)}>Next</a>}
+      </nav>
+
+      <a href="/account">Back to account</a>
+    </main>
+
+    <style>
+      body {
+        font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+        background: #f6f7f9;
+        color: #111;
+        margin: 0;
+        padding: 2rem;
+      }
+      .container {
+        max-width: 56rem;
+        margin: 2rem auto;
+        background: #fff;
+        border: 1px solid #e3e6ea;
+        border-radius: 10px;
+        padding: 1.75rem;
+      }
+      h1 { margin: 0 0 0.5rem; font-size: 1.5rem; }
+      .muted { color: #6c757d; margin-bottom: 1.5rem; }
+      .search-form { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
+      .search-form input, .search-form select, .search-form button { padding: 0.55rem; }
+      .search-form input { flex: 1; min-width: 12rem; }
+      .message { min-height: 1.25rem; color: #087f5b; }
+      .message.error { color: #c92a2a; }
+      .table-wrap { overflow-x: auto; margin: 1.25rem 0; }
+      table { width: 100%; border-collapse: collapse; }
+      th, td { border-bottom: 1px solid #e3e6ea; padding: 0.75rem; text-align: left; }
+      th { background: #f8f9fa; }
+      .actions { min-width: 12rem; }
+      .action-button { margin: 0.15rem; padding: 0.4rem 0.55rem; cursor: pointer; }
+      .action-button.danger { color: #c92a2a; }
+      .protected-label { color: #6c757d; font-size: 0.85rem; }
+      .pagination { display: flex; justify-content: center; gap: 1rem; margin: 1rem 0; }
+      a { color: #364fc7; }
+    </style>
+  </body>
+
+  <script>
+    import {
+      banManagedUser,
+      revokeManagedUserSessions,
+      unbanManagedUser,
+    } from "@/lib/auth-facade";
+
+    const message = document.getElementById("action-message") as HTMLParagraphElement;
+
+    document.querySelectorAll<HTMLButtonElement>(".action-button").forEach((button) => {
+      button.addEventListener("click", async () => {
+        const userId = button.dataset.userId;
+        const email = button.dataset.userEmail ?? "this user";
+        const action = button.dataset.action;
+        if (!userId || !action) return;
+
+        const prompt = action === "ban"
+          ? `Block ${email}? Their active sessions will be revoked.`
+          : action === "unban"
+            ? `Unblock ${email}?`
+            : `Revoke every active session for ${email}?`;
+        if (!window.confirm(prompt)) return;
+
+        const row = button.closest("tr");
+        row?.querySelectorAll<HTMLButtonElement>("button").forEach((item) => { item.disabled = true; });
+        message.classList.remove("error");
+        message.textContent = "Applying administrative action…";
+
+        try {
+          const result = action === "ban"
+            ? await banManagedUser(userId)
+            : action === "unban"
+              ? await unbanManagedUser(userId)
+              : await revokeManagedUserSessions(userId);
+          if (result.error) throw new Error(result.error.message);
+          window.location.reload();
+        } catch {
+          row?.querySelectorAll<HTMLButtonElement>("button").forEach((item) => { item.disabled = false; });
+          message.classList.add("error");
+          message.textContent = "The administrative action could not be completed.";
+        }
+      });
+    });
+  </script>
+</html>

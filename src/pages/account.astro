@@ -1,0 +1,160 @@
+---
+import { getCurrentSession, getUserRoles, isAdminUser } from "@/lib/session";
+
+// Server-side authorization: redirect to /login if not authenticated.
+const session = await getCurrentSession(Astro.request.headers);
+if (!session) {
+  return Astro.redirect("/login");
+}
+
+// Only safe, basic user information is displayed.
+const name = session.user.name;
+const email = session.user.email;
+const emailVerified = session.user.emailVerified;
+const twoFactorEnabled = session.user.twoFactorEnabled;
+const roles = getUserRoles(session.user);
+const isAdmin = isAdminUser(session.user);
+---
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Account — AuthCore</title>
+  </head>
+  <body>
+    <main class="container">
+      <h1>Account</h1>
+
+      <section id="account-info">
+        <p><strong>Name:</strong> <span id="user-name">{name}</span></p>
+        <p><strong>Email:</strong> <span id="user-email">{email}</span></p>
+        <p><strong>Verified:</strong> <span id="user-verified">{emailVerified ? "Yes" : "No"}</span></p>
+        <p><strong>Role:</strong> <span id="user-role">{roles.join(", ")}</span></p>
+      </section>
+
+      <p class="muted">This is a minimal authenticated page to prove login works.</p>
+
+      <a id="change-password-link" class="primary-link" href="/change-password">Change password</a>
+
+      <a id="change-email-link" class="secondary-link" href="/change-email">Change email</a>
+
+      <a id="sessions-link" class="secondary-link" href="/sessions">Manage sessions</a>
+
+      <a id="two-factor-link" class="secondary-link" href="/two-factor-setup">
+        {twoFactorEnabled ? "Manage two-factor authentication" : "Enable two-factor authentication"}
+      </a>
+
+      <a id="passkeys-link" class="secondary-link" href="/passkeys">Manage passkeys</a>
+
+      <a id="security-activity-link" class="secondary-link" href="/security-activity">Security activity</a>
+
+      {isAdmin && <a id="admin-link" class="secondary-link" href="/admin">Administration</a>}
+
+      <a id="delete-account-link" class="danger-link" href="/delete-account">Delete account</a>
+
+      <button id="signout-button" type="button">Sign out</button>
+    </main>
+
+    <style>
+      body {
+        font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+        background: #f6f7f9;
+        color: #111;
+        margin: 0;
+        padding: 2rem;
+      }
+      .container {
+        max-width: 26rem;
+        margin: 2rem auto;
+        background: #fff;
+        border: 1px solid #e3e6ea;
+        border-radius: 10px;
+        padding: 1.75rem;
+      }
+      h1 { font-size: 1.4rem; margin: 0 0 1.25rem; }
+      #account-info p { margin: 0.5rem 0; }
+      .muted { color: #6c757d; font-size: 0.9rem; margin-top: 1.5rem; margin-bottom: 1.5rem; }
+      .primary-link {
+        display: block;
+        width: 100%;
+        box-sizing: border-box;
+        margin-bottom: 0.75rem;
+        padding: 0.7rem;
+        border-radius: 6px;
+        background: #4c6ef5;
+        color: #fff;
+        font-size: 1rem;
+        font-weight: 600;
+        text-align: center;
+        text-decoration: none;
+      }
+      .secondary-link {
+        display: block;
+        width: 100%;
+        box-sizing: border-box;
+        margin-bottom: 0.75rem;
+        padding: 0.7rem;
+        border: 1px solid #4c6ef5;
+        border-radius: 6px;
+        color: #364fc7;
+        font-size: 1rem;
+        font-weight: 600;
+        text-align: center;
+        text-decoration: none;
+      }
+      .danger-link {
+        display: block;
+        width: 100%;
+        box-sizing: border-box;
+        margin: 1.25rem 0 0.75rem;
+        padding: 0.7rem;
+        border: 1px solid #c92a2a;
+        border-radius: 6px;
+        color: #c92a2a;
+        font-size: 1rem;
+        font-weight: 600;
+        text-align: center;
+        text-decoration: none;
+      }
+      #signout-button {
+        width: 100%;
+        padding: 0.7rem;
+        border: 1px solid #c92a2a;
+        border-radius: 6px;
+        background: #fff;
+        color: #c92a2a;
+        font-size: 1rem;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      #signout-button:disabled {
+        opacity: 0.6;
+        cursor: progress;
+      }
+    </style>
+
+    <script>
+      import { signOut } from "@/lib/auth-facade";
+
+      const signoutButton = document.getElementById("signout-button") as HTMLButtonElement;
+      let signingOut = false;
+
+      signoutButton.addEventListener("click", async () => {
+        if (signingOut) return;
+        signingOut = true;
+        signoutButton.disabled = true;
+        signoutButton.textContent = "Signing out…";
+
+        try {
+          await signOut();
+          window.location.href = "/login";
+        } catch (err) {
+          signingOut = false;
+          signoutButton.disabled = false;
+          signoutButton.textContent = "Sign out";
+        }
+      });
+    </script>
+  </body>
+</html>

@@ -1,5 +1,7 @@
 import { getMigrations } from "better-auth/db/migration";
 import { auth, pool } from "../src/lib/auth";
+import { ensureSecurityEventSchema } from "../src/lib/security-events";
+import { ensureAuthorizationDefaults } from "../src/lib/authorization";
 
 /**
  * Programmatic Better Auth migration.
@@ -13,6 +15,8 @@ import { auth, pool } from "../src/lib/auth";
 async function main(): Promise<void> {
   const { toBeCreated, toBeAdded, runMigrations } = await getMigrations(auth.options);
   await runMigrations();
+  await ensureAuthorizationDefaults(pool);
+  await ensureSecurityEventSchema();
   console.log("[authcore] migrations applied.");
   if (toBeCreated?.length) {
     console.log("[authcore] tables to be created:", toBeCreated.length);

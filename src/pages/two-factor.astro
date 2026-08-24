@@ -1,0 +1,54 @@
+---
+import { getCurrentSession } from "@/lib/session";
+const session = await getCurrentSession(Astro.request.headers);
+if (session) return Astro.redirect("/account");
+---
+<!doctype html>
+<html lang="en">
+  <head><meta charset="utf-8" /><meta name="viewport" content="width=device-width" /><title>Two-factor verification — AuthCore</title></head>
+  <body>
+    <main class="container">
+      <h1>Two-factor verification</h1>
+      <p>Enter the current code from your authenticator app.</p>
+      <form id="totp-form">
+        <label for="code">Authenticator code</label>
+        <input id="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" required />
+        <label class="check"><input id="trust-device" type="checkbox" /> Trust this device for 30 days</label>
+        <button type="submit">Verify</button>
+      </form>
+      <button id="show-backup" class="link-button" type="button">Use a recovery code</button>
+      <form id="backup-form" hidden>
+        <label for="backup-code">Recovery code</label>
+        <input id="backup-code" autocomplete="one-time-code" required />
+        <button type="submit">Use recovery code</button>
+      </form>
+      <p id="error-message" role="alert" hidden></p>
+      <p class="back"><a href="/login">Cancel</a></p>
+    </main>
+    <style>
+      body{font-family:system-ui,sans-serif;background:#f6f7f9;margin:0;padding:2rem}.container{max-width:26rem;margin:2rem auto;background:#fff;border:1px solid #e3e6ea;border-radius:10px;padding:1.75rem}h1{font-size:1.4rem}label{display:block;font-weight:600;font-size:.88rem;margin:.8rem 0 .35rem}input{box-sizing:border-box;width:100%;padding:.65rem;border:1px solid #c7ccd2;border-radius:6px;font-size:1rem}.check{font-weight:400}.check input{width:auto}button{width:100%;margin-top:1rem;padding:.7rem;border:0;border-radius:6px;background:#4c6ef5;color:#fff;font-weight:700}.link-button{background:#fff;color:#4c6ef5;border:1px solid #4c6ef5}#error-message{color:#c92a2a}.back{text-align:center}a{color:#4c6ef5}
+    </style>
+    <script>
+      import { verifyTwoFactorBackupCode, verifyTwoFactorTotp } from "@/lib/auth-facade";
+      const error = document.getElementById("error-message") as HTMLElement;
+      (document.getElementById("totp-form") as HTMLFormElement).addEventListener("submit", async (event) => {
+        event.preventDefault(); const code = (document.getElementById("code") as HTMLInputElement).value;
+        const trust = (document.getElementById("trust-device") as HTMLInputElement).checked;
+        if (!/^\d{6}$/.test(code)) { error.textContent = "Enter a valid 6-digit code."; error.hidden = false; return; }
+        const result = await verifyTwoFactorTotp(code, trust);
+        if (result.error) { error.textContent = result.error.status === 429 ? "Too many attempts. Please wait before trying again." : "The code is invalid or expired."; error.hidden = false; return; }
+        window.location.href = "/account";
+      });
+      document.getElementById("show-backup")?.addEventListener("click", () => {
+        (document.getElementById("totp-form") as HTMLElement).hidden = true;
+        (document.getElementById("backup-form") as HTMLElement).hidden = false;
+      });
+      (document.getElementById("backup-form") as HTMLFormElement).addEventListener("submit", async (event) => {
+        event.preventDefault(); const code = (document.getElementById("backup-code") as HTMLInputElement).value.trim();
+        const result = await verifyTwoFactorBackupCode(code);
+        if (result.error) { error.textContent = result.error.status === 429 ? "Too many attempts. Please wait before trying again." : "The recovery code is invalid or already used."; error.hidden = false; return; }
+        window.location.href = "/account";
+      });
+    </script>
+  </body>
+</html>

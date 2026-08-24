@@ -1,0 +1,314 @@
+---
+// Phase 12: email/password, Google OAuth, and passkey sign-in.
+---
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Sign in — AuthCore</title>
+  </head>
+  <body>
+    <main class="container">
+      <h1>Sign in</h1>
+
+      <form id="login-form" novalidate>
+        <div class="field">
+          <label for="email">Email</label>
+          <input id="email" name="email" type="email" autocomplete="email" required />
+        </div>
+
+        <div class="field">
+          <label for="password">Password</label>
+          <input id="password" name="password" type="password" autocomplete="current-password" required />
+        </div>
+
+        <div class="field-inline">
+          <input id="remember-me" name="remember-me" type="checkbox" checked />
+          <label for="remember-me">Remember me</label>
+        </div>
+
+        <p id="error-message" role="alert" hidden></p>
+
+        <button id="login-button" type="submit">Sign in</button>
+
+        <p class="muted forgot-link"><a href="/forgot-password">Forgot password?</a></p>
+
+        <p class="muted">
+          Don't have an account? <a href="/register">Register</a>
+        </p>
+      </form>
+
+      <div class="separator"><span>or</span></div>
+
+      <button id="passkey-button" type="button" class="passkey-btn">
+        Sign in with a passkey
+      </button>
+
+      <button id="google-button" type="button" class="google-btn">
+        <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true">
+          <path fill="#FFC107" d="M43.611,20.083H42V20H24v8h11.303c-1.649,4.657-6.081,8-11.303,8c-6.627,0-12-5.373-12-12c0-6.627,5.373-12,12-12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C12.955,4,4,12.955,4,24c0,11.045,8.955,20,20,20c11.045,0,20-8.955,20-20C44,22.659,43.862,21.35,43.611,20.083z"/>
+          <path fill="#FF3D00" d="M6.306,14.691l6.571,4.819C14.655,15.108,18.961,12,24,12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C16.318,4,9.656,8.337,6.306,14.691z"/>
+          <path fill="#4CAF50" d="M24,44c5.166,0,9.86-1.977,13.409-5.192l-6.19-5.238C29.211,35.091,26.715,36,24,36c-5.202,0-9.619-3.317-11.283-7.946l-6.522,5.025C9.505,39.556,16.227,44,24,44z"/>
+          <path fill="#1976D2" d="M43.611,20.083H42V20H24v8h11.303c-0.792,2.237-2.231,4.166-4.087,5.571c0.001-0.001,0.002-0.001,0.003-0.002l6.19,5.238C36.971,39.205,44,34,44,24C44,22.659,43.862,21.35,43.611,20.083z"/>
+        </svg>
+        Continue with Google
+      </button>
+    </main>
+
+    <style>
+      body {
+        font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+        background: #f6f7f9;
+        color: #111;
+        margin: 0;
+        padding: 2rem;
+      }
+      .container {
+        max-width: 26rem;
+        margin: 2rem auto;
+        background: #fff;
+        border: 1px solid #e3e6ea;
+        border-radius: 10px;
+        padding: 1.75rem;
+      }
+      h1 { font-size: 1.4rem; margin: 0 0 1.25rem; }
+      .field {
+        display: flex;
+        flex-direction: column;
+        margin-bottom: 1rem;
+      }
+      .field-inline {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin-bottom: 1rem;
+      }
+      .field-inline label { margin: 0; }
+      label {
+        font-size: 0.85rem;
+        margin-bottom: 0.35rem;
+        font-weight: 600;
+      }
+      input[type="email"], input[type="password"] {
+        padding: 0.6rem 0.7rem;
+        border: 1px solid #c7ccd2;
+        border-radius: 6px;
+        font-size: 1rem;
+      }
+      input:focus {
+        outline: 2px solid #4c6ef5;
+        outline-offset: 1px;
+      }
+      input[type="checkbox"] {
+        width: 1rem;
+        height: 1rem;
+      }
+      #login-button {
+        width: 100%;
+        padding: 0.7rem;
+        border: 0;
+        border-radius: 6px;
+        background: #4c6ef5;
+        color: #fff;
+        font-size: 1rem;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      #login-button:disabled {
+        background: #9aa4b2;
+        cursor: progress;
+      }
+      #error-message {
+        color: #c92a2a;
+        background: #fff5f5;
+        border: 1px solid #ffd0d0;
+        padding: 0.6rem 0.7rem;
+        border-radius: 6px;
+        margin: 0 0 1rem;
+        font-size: 0.9rem;
+      }
+      .muted {
+        color: #6c757d;
+        font-size: 0.9rem;
+        text-align: center;
+        margin-top: 1rem;
+      }
+      .muted a { color: #4c6ef5; text-decoration: none; }
+      .forgot-link { margin-bottom: 0; }
+      .separator {
+        display: flex;
+        align-items: center;
+        text-align: center;
+        margin: 1.5rem 0;
+        color: #6c757d;
+        font-size: 0.85rem;
+      }
+      .separator::before, .separator::after {
+        content: "";
+        flex: 1;
+        border-bottom: 1px solid #e3e6ea;
+      }
+      .separator span { padding: 0 0.75rem; }
+      .google-btn, .passkey-btn {
+        width: 100%;
+        padding: 0.7rem;
+        border: 1px solid #c7ccd2;
+        border-radius: 6px;
+        background: #fff;
+        color: #111;
+        font-size: 1rem;
+        font-weight: 500;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+      }
+      .passkey-btn { margin-bottom: 0.75rem; }
+      .google-btn:disabled, .passkey-btn:disabled {
+        opacity: 0.6;
+        cursor: progress;
+      }
+    </style>
+
+    <script>
+      import { signIn, signInWithGoogle, signInWithPasskey } from "@/lib/auth-facade";
+
+      const form = document.getElementById("login-form") as HTMLFormElement;
+      const button = document.getElementById("login-button") as HTMLButtonElement;
+      const errorEl = document.getElementById("error-message") as HTMLParagraphElement;
+      const emailInput = document.getElementById("email") as HTMLInputElement;
+      const passwordInput = document.getElementById("password") as HTMLInputElement;
+      const rememberInput = document.getElementById("remember-me") as HTMLInputElement;
+      const googleButton = document.getElementById("google-button") as HTMLButtonElement;
+      const passkeyButton = document.getElementById("passkey-button") as HTMLButtonElement;
+
+      const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+      function showError(msg: string): void {
+        errorEl.textContent = msg;
+        errorEl.hidden = false;
+      }
+
+      function clearError(): void {
+        errorEl.textContent = "";
+        errorEl.hidden = true;
+      }
+
+      function mapError(error: { message?: string; status?: number } | null | undefined): string {
+        if (error?.status === 429) {
+          return "Too many sign-in attempts. Please wait before trying again.";
+        }
+        const m = (error?.message ?? "").toLowerCase();
+        if (m.includes("verify") || m.includes("email") && m.includes("not")) {
+          return "Please verify your email before signing in.";
+        }
+        if (error?.status === 403) {
+          return "Please verify your email before signing in.";
+        }
+        return "Invalid email or password.";
+      }
+
+      let submitting = false;
+
+      form.addEventListener("submit", async (e: SubmitEvent) => {
+        e.preventDefault();
+        clearError();
+        if (submitting) return;
+
+        const email = emailInput.value.trim();
+        const password = passwordInput.value;
+
+        if (!EMAIL_RE.test(email)) {
+          showError("Please enter a valid email address.");
+          emailInput.focus();
+          return;
+        }
+        if (!password) {
+          showError("Please enter your password.");
+          passwordInput.focus();
+          return;
+        }
+
+        submitting = true;
+        button.disabled = true;
+        button.textContent = "Signing in…";
+
+        try {
+          const { data, error } = await signIn({
+            email,
+            password,
+            rememberMe: rememberInput.checked,
+          });
+          if (error) {
+            showError(mapError(error));
+            button.disabled = false;
+            button.textContent = "Sign in";
+            submitting = false;
+            return;
+          }
+          if (data && "twoFactorRedirect" in data && data.twoFactorRedirect) {
+            window.location.href = "/two-factor";
+            return;
+          }
+          window.location.href = "/account";
+        } catch (err) {
+          showError("Unable to sign in. Please try again.");
+          button.disabled = false;
+          button.textContent = "Sign in";
+          submitting = false;
+        }
+      });
+
+      let googleSubmitting = false;
+
+      googleButton.addEventListener("click", async () => {
+        if (googleSubmitting) return;
+        googleSubmitting = true;
+        googleButton.disabled = true;
+        clearError();
+
+        try {
+          const { error } = await signInWithGoogle("/account");
+          if (error) {
+            showError("Unable to start Google sign-in. Please try again.");
+            googleButton.disabled = false;
+            googleSubmitting = false;
+          }
+        } catch (err) {
+          showError("Unable to start Google sign-in. Please try again.");
+          googleButton.disabled = false;
+          googleSubmitting = false;
+        }
+      });
+
+      let passkeySubmitting = false;
+
+      passkeyButton.addEventListener("click", async () => {
+        if (passkeySubmitting) return;
+        passkeySubmitting = true;
+        passkeyButton.disabled = true;
+        passkeyButton.textContent = "Waiting for passkey…";
+        clearError();
+
+        try {
+          const { error } = await signInWithPasskey();
+          if (error) {
+            showError("Passkey sign-in was cancelled or could not be completed.");
+            passkeyButton.disabled = false;
+            passkeyButton.textContent = "Sign in with a passkey";
+            passkeySubmitting = false;
+            return;
+          }
+          window.location.href = "/account";
+        } catch {
+          showError("Passkey sign-in is unavailable in this browser.");
+          passkeyButton.disabled = false;
+          passkeyButton.textContent = "Sign in with a passkey";
+          passkeySubmitting = false;
+        }
+      });
+    </script>
+  </body>
+</html>

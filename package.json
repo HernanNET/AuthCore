@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Standalone authentication module (Better Auth + PostgreSQL) — Phase 1: registration only.",
+  "description": "Standalone authentication module (Better Auth + PostgreSQL) — Phases 1–19.",
   "scripts": {
     "dev": "astro dev",
     "build": "astro build",
@@ -14,12 +14,17 @@
     "db:down": "docker compose down",
     "db:migrate": "tsx scripts/migrate.ts",
     "db:migrate:test": "cross-env AUTH_ENV=test tsx scripts/migrate.ts",
+    "admin:promote": "tsx scripts/set-user-role.ts admin",
+    "admin:demote": "tsx scripts/set-user-role.ts user",
     "test:serve": "cross-env AUTH_ENV=test astro dev --port 4321",
-    "test:e2e": "cross-env AUTH_ENV=test playwright test",
+    "test:e2e": "cross-env AUTH_ENV=test playwright test && cross-env AUTH_ENV=development playwright test --config=playwright.config.production.ts",
+    "test:e2e:main": "cross-env AUTH_ENV=test playwright test",
+    "test:e2e:prod": "cross-env AUTH_ENV=development playwright test --config=playwright.config.production.ts",
     "test:e2e:ui": "cross-env AUTH_ENV=test playwright test --ui"
   },
   "dependencies": {
     "@astrojs/node": "^11.1.4",
+    "@better-auth/passkey": "1.7.1",
     "astro": "^7.2.4",
     "better-auth": "^1.7.1",
     "dotenv": "^17.4.2",
@@ -32,6 +37,6 @@
     "@types/pg": "^8.23.1",
     "cross-env": "^10.1.0",
     "tsx": "^4.23.12",
-    "typescript": "^7.0.2"
+    "typescript": "^6.0.3"
   }
 }

@@ -1,0 +1,82 @@
+---
+import { getCurrentSession } from "@/lib/session";
+import { listSecurityEvents, type SecurityEventType } from "@/lib/security-events";
+
+const session = await getCurrentSession(Astro.request.headers);
+if (!session) return Astro.redirect("/login");
+
+const events = await listSecurityEvents(session.user.id);
+
+const labels: Record<SecurityEventType, string> = {
+  account_created: "Account created",
+  signed_in: "Signed in",
+  signed_out: "Signed out",
+  password_changed: "Password changed",
+  email_change_requested: "Email change requested",
+  two_factor_enabled: "Two-factor authentication enabled",
+  two_factor_disabled: "Two-factor authentication disabled",
+  passkey_added: "Passkey added",
+  passkey_deleted: "Passkey deleted",
+  session_revoked: "Session revoked",
+  other_sessions_revoked: "Other sessions revoked",
+  account_deletion_requested: "Account deletion requested",
+  admin_user_blocked: "Account blocked by an administrator",
+  admin_user_unblocked: "Account unblocked by an administrator",
+  admin_sessions_revoked: "Sessions revoked by an administrator",
+};
+
+function describeAgent(value: string | null): string {
+  if (!value) return "Unknown device";
+  if (/edg\//i.test(value)) return "Microsoft Edge";
+  if (/chrome\//i.test(value)) return "Chrome";
+  if (/firefox\//i.test(value)) return "Firefox";
+  if (/safari\//i.test(value)) return "Safari";
+  return "Browser or device";
+}
+---
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Security activity — AuthCore</title>
+  </head>
+  <body>
+    <main class="container">
+      <h1>Security activity</h1>
+      <p class="intro">Review recent security changes and sign-ins for your account.</p>
+
+      {events.length === 0 ? (
+        <p id="empty-state" class="empty">No security activity has been recorded yet.</p>
+      ) : (
+        <ol id="security-event-list">
+          {events.map((event) => (
+            <li data-event-type={event.type}>
+              <p class="event-title">{labels[event.type]}</p>
+              <p class="event-time">
+                <time datetime={event.createdAt.toISOString()}>{event.createdAt.toLocaleString("en-GB")}</time>
+              </p>
+              <p class="event-meta">{describeAgent(event.userAgent)} · IP: {event.ipAddress ?? "Unavailable"}</p>
+            </li>
+          ))}
+        </ol>
+      )}
+
+      <p class="privacy-note">Passwords, tokens, authenticator secrets, and recovery codes are never stored in this history.</p>
+      <a class="back-link" href="/account">Back to account</a>
+    </main>
+
+    <style>
+      body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; background: #f6f7f9; color: #111; margin: 0; padding: 2rem; }
+      .container { max-width: 36rem; margin: 2rem auto; background: #fff; border: 1px solid #e3e6ea; border-radius: 10px; padding: 1.75rem; }
+      h1 { font-size: 1.4rem; margin: 0 0 .5rem; }
+      .intro, .empty, .privacy-note { color: #6c757d; line-height: 1.5; font-size: .9rem; }
+      ol { list-style: none; padding: 0; margin: 1.5rem 0; display: grid; gap: .75rem; }
+      li { border: 1px solid #e3e6ea; border-radius: 8px; padding: .85rem 1rem; }
+      .event-title { font-weight: 700; margin: 0 0 .25rem; }
+      .event-time, .event-meta { color: #6c757d; font-size: .84rem; margin: .15rem 0; }
+      .privacy-note { border-top: 1px solid #e3e6ea; margin-top: 1.5rem; padding-top: 1rem; }
+      .back-link { display: block; margin-top: 1.25rem; color: #4c6ef5; text-align: center; text-decoration: none; }
+    </style>
+  </body>
+</html>

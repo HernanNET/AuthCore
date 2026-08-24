@@ -1,0 +1,18 @@
+---
+import { auth } from "@/lib/auth";
+
+const token = Astro.url.searchParams.get("token");
+if (!token) {
+  return Astro.redirect("/account-deleted?error=invalid");
+}
+
+try {
+  await auth.api.deleteUser({
+    body: { token },
+    headers: Astro.request.headers,
+  });
+  return Astro.redirect("/account-deleted?status=success");
+} catch {
+  return Astro.redirect("/account-deleted?error=invalid");
+}
+---

@@ -1,0 +1,178 @@
+---
+import { getCurrentSession } from "@/lib/session";
+
+// Phase 8 is available only to an authenticated browser session.
+const session = await getCurrentSession(Astro.request.headers);
+if (!session) {
+  return Astro.redirect("/login");
+}
+---
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Active sessions — AuthCore</title>
+  </head>
+  <body>
+    <main class="container">
+      <h1>Active sessions</h1>
+      <p class="intro">Review browsers and devices signed in to your account.</p>
+
+      <p id="loading-state" aria-live="polite">Loading sessions…</p>
+      <p id="error-message" role="alert" hidden></p>
+      <ul id="session-list" aria-label="Active sessions" hidden></ul>
+
+      <button id="revoke-others-button" type="button" hidden>Sign out all other sessions</button>
+      <p id="success-message" role="status" hidden></p>
+      <p class="back-link"><a href="/account">Back to account</a></p>
+    </main>
+
+    <!-- Session cards are created client-side, so their selectors must not be
+         rewritten with Astro's component scope attribute. -->
+    <style is:global>
+      body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; background: #f6f7f9; color: #111; margin: 0; padding: 2rem; }
+      .container { max-width: 34rem; margin: 2rem auto; background: #fff; border: 1px solid #e3e6ea; border-radius: 10px; padding: 1.75rem; }
+      h1 { font-size: 1.4rem; margin: 0 0 .65rem; }
+      .intro { color: #6c757d; line-height: 1.5; margin: 0 0 1.25rem; }
+      #session-list { list-style: none; padding: 0; margin: 0 0 1rem; }
+      .session-card { border: 1px solid #d9dde3; border-radius: 8px; padding: 1rem; margin-bottom: .75rem; }
+      .session-card.current { border-color: #74c0fc; background: #f0f9ff; }
+      .session-heading { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: .45rem; }
+      .session-heading strong { overflow-wrap: anywhere; }
+      .badge { flex: none; color: #1864ab; background: #d0ebff; border-radius: 999px; padding: .2rem .55rem; font-size: .75rem; font-weight: 700; }
+      .meta { color: #59636e; font-size: .82rem; margin: .25rem 0; overflow-wrap: anywhere; }
+      button { width: 100%; box-sizing: border-box; padding: .7rem; border: 1px solid #c92a2a; border-radius: 6px; background: #fff; color: #c92a2a; font-size: .95rem; font-weight: 600; cursor: pointer; }
+      .session-card button { margin-top: .65rem; }
+      button:disabled { opacity: .6; cursor: progress; }
+      #error-message { color: #c92a2a; background: #fff5f5; border: 1px solid #ffd0d0; padding: .6rem .7rem; border-radius: 6px; }
+      #success-message { color: #2b8a3e; background: #ebfbee; border: 1px solid #b2f2bb; padding: .6rem .7rem; border-radius: 6px; }
+      .back-link { margin: 1.25rem 0 0; text-align: center; font-size: .9rem; }
+      .back-link a { color: #4c6ef5; text-decoration: none; }
+    </style>
+
+    <script>
+      import {
+        listActiveSessions,
+        revokeActiveSession,
+        revokeOtherActiveSessions,
+        type ActiveSession,
+      } from "@/lib/auth-facade";
+
+      const loading = document.getElementById("loading-state") as HTMLParagraphElement;
+      const error = document.getElementById("error-message") as HTMLParagraphElement;
+      const success = document.getElementById("success-message") as HTMLParagraphElement;
+      const list = document.getElementById("session-list") as HTMLUListElement;
+      const revokeOthers = document.getElementById("revoke-others-button") as HTMLButtonElement;
+
+      function showError(): void {
+        error.textContent = "Unable to load or update sessions. Please try again.";
+        error.hidden = false;
+      }
+
+      function describeBrowser(userAgent: string | null): string {
+        if (!userAgent) return "Unknown browser";
+        if (userAgent.includes("Edg/")) return "Microsoft Edge";
+        if (userAgent.includes("Firefox/")) return "Firefox";
+        if (userAgent.includes("Chrome/")) return "Chrome";
+        if (userAgent.includes("Safari/")) return "Safari";
+        return "Other browser";
+      }
+
+      function formatDate(value: string): string {
+        return new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
+      }
+
+      function render(sessions: ActiveSession[]): void {
+        list.replaceChildren();
+        for (const session of sessions) {
+          const item = document.createElement("li");
+          item.className = `session-card${session.current ? " current" : ""}`;
+          item.dataset.current = String(session.current);
+
+          const heading = document.createElement("div");
+          heading.className = "session-heading";
+          const browser = document.createElement("strong");
+          browser.textContent = describeBrowser(session.userAgent);
+          heading.append(browser);
+          if (session.current) {
+            const badge = document.createElement("span");
+            badge.className = "badge";
+            badge.textContent = "This device";
+            heading.append(badge);
+          }
+          item.append(heading);
+
+          const created = document.createElement("p");
+          created.className = "meta";
+          created.textContent = `Signed in: ${formatDate(session.createdAt)}`;
+          item.append(created);
+
+          const expires = document.createElement("p");
+          expires.className = "meta";
+          expires.textContent = `Expires: ${formatDate(session.expiresAt)}`;
+          item.append(expires);
+
+          const address = document.createElement("p");
+          address.className = "meta";
+          address.textContent = `IP address: ${session.ipAddress ?? "Unavailable"}`;
+          item.append(address);
+
+          if (!session.current) {
+            const revoke = document.createElement("button");
+            revoke.type = "button";
+            revoke.textContent = "Sign out this session";
+            revoke.addEventListener("click", async () => {
+              revoke.disabled = true;
+              error.hidden = true;
+              try {
+                const result = await revokeActiveSession(session.key);
+                if (result.error) throw new Error("Revoke failed");
+                success.textContent = "The selected session was signed out.";
+                success.hidden = false;
+                await load();
+              } catch {
+                revoke.disabled = false;
+                showError();
+              }
+            });
+            item.append(revoke);
+          }
+          list.append(item);
+        }
+        list.hidden = false;
+        revokeOthers.hidden = sessions.filter((item) => !item.current).length === 0;
+      }
+
+      async function load(): Promise<void> {
+        try {
+          const result = await listActiveSessions();
+          if (result.error || !result.data) throw new Error("List failed");
+          loading.hidden = true;
+          error.hidden = true;
+          render(result.data);
+        } catch {
+          loading.hidden = true;
+          showError();
+        }
+      }
+
+      revokeOthers.addEventListener("click", async () => {
+        revokeOthers.disabled = true;
+        error.hidden = true;
+        try {
+          const result = await revokeOtherActiveSessions();
+          if (result.error) throw new Error("Revoke failed");
+          success.textContent = "All other sessions were signed out.";
+          success.hidden = false;
+          await load();
+        } catch {
+          revokeOthers.disabled = false;
+          showError();
+        }
+      });
+
+      void load();
+    </script>
+  </body>
+</html>

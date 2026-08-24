@@ -1,0 +1,126 @@
+---
+import { getCurrentSession } from "@/lib/session";
+
+const session = await getCurrentSession(Astro.request.headers);
+if (!session) {
+  return Astro.redirect("/login");
+}
+
+const currentEmail = session.user.email;
+---
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Change email — AuthCore</title>
+  </head>
+  <body>
+    <main class="container">
+      <h1>Change email</h1>
+      <p class="intro">Current email: <strong id="current-email">{currentEmail}</strong></p>
+      <p class="intro">For security, approve the request from your current email, then verify the new one.</p>
+
+      <section id="form-section">
+        <form id="change-email-form" data-current-email={currentEmail} novalidate>
+          <div class="field">
+            <label for="new-email">New email</label>
+            <input id="new-email" name="new-email" type="email" autocomplete="email" required />
+          </div>
+          <div class="field">
+            <label for="confirm-email">Confirm new email</label>
+            <input id="confirm-email" name="confirm-email" type="email" autocomplete="email" required />
+          </div>
+          <p id="error-message" role="alert" hidden></p>
+          <button id="change-email-button" type="submit">Request email change</button>
+        </form>
+      </section>
+
+      <section id="success-state" aria-live="polite" hidden>
+        <h2>Check your current email</h2>
+        <p>If the request can be completed, an approval link has been sent to your current email.</p>
+        <p>After approval, check the new address for the final verification link.</p>
+      </section>
+
+      <p class="back-link"><a href="/account">Back to account</a></p>
+    </main>
+
+    <style>
+      body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; background: #f6f7f9; color: #111; margin: 0; padding: 2rem; }
+      .container { max-width: 28rem; margin: 2rem auto; background: #fff; border: 1px solid #e3e6ea; border-radius: 10px; padding: 1.75rem; }
+      h1 { font-size: 1.4rem; margin: 0 0 .65rem; }
+      h2 { color: #2b8a3e; font-size: 1.2rem; margin: 0 0 .5rem; }
+      .intro { color: #59636e; line-height: 1.5; margin: 0 0 1rem; overflow-wrap: anywhere; }
+      .field { display: flex; flex-direction: column; margin-bottom: 1rem; }
+      label { font-size: .85rem; margin-bottom: .35rem; font-weight: 600; }
+      input { padding: .6rem .7rem; border: 1px solid #c7ccd2; border-radius: 6px; font-size: 1rem; }
+      input:focus { outline: 2px solid #4c6ef5; outline-offset: 1px; }
+      button { width: 100%; padding: .7rem; border: 0; border-radius: 6px; background: #4c6ef5; color: #fff; font-size: 1rem; font-weight: 600; cursor: pointer; }
+      button:disabled { background: #9aa4b2; cursor: progress; }
+      #error-message { color: #c92a2a; background: #fff5f5; border: 1px solid #ffd0d0; padding: .6rem .7rem; border-radius: 6px; margin: 0 0 1rem; font-size: .9rem; }
+      .back-link { text-align: center; margin: 1.25rem 0 0; font-size: .9rem; }
+      a { color: #4c6ef5; text-decoration: none; }
+    </style>
+
+    <script>
+      import { requestEmailChange } from "@/lib/auth-facade";
+
+      const form = document.getElementById("change-email-form") as HTMLFormElement;
+      const button = document.getElementById("change-email-button") as HTMLButtonElement;
+      const newEmailInput = document.getElementById("new-email") as HTMLInputElement;
+      const confirmationInput = document.getElementById("confirm-email") as HTMLInputElement;
+      const errorEl = document.getElementById("error-message") as HTMLParagraphElement;
+      const formSection = document.getElementById("form-section") as HTMLElement;
+      const successState = document.getElementById("success-state") as HTMLElement;
+      const currentEmail = form.dataset.currentEmail ?? "";
+      const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      let submitting = false;
+
+      function showError(message: string): void {
+        errorEl.textContent = message;
+        errorEl.hidden = false;
+      }
+
+      form.addEventListener("submit", async (event: SubmitEvent) => {
+        event.preventDefault();
+        if (submitting) return;
+        errorEl.hidden = true;
+        const newEmail = newEmailInput.value.trim().toLowerCase();
+        const confirmation = confirmationInput.value.trim().toLowerCase();
+
+        if (!EMAIL_RE.test(newEmail)) {
+          showError("Please enter a valid email address.");
+          newEmailInput.focus();
+          return;
+        }
+        if (newEmail !== confirmation) {
+          showError("Email addresses do not match.");
+          confirmationInput.focus();
+          return;
+        }
+        if (newEmail === currentEmail.toLowerCase()) {
+          showError("Choose an email different from your current email.");
+          newEmailInput.focus();
+          return;
+        }
+
+        submitting = true;
+        button.disabled = true;
+        button.textContent = "Requesting…";
+        try {
+          const { error } = await requestEmailChange(newEmail);
+          if (error) throw new Error("Request failed");
+          newEmailInput.value = "";
+          confirmationInput.value = "";
+          formSection.hidden = true;
+          successState.hidden = false;
+        } catch {
+          showError("Unable to request the email change. Please try again.");
+          button.disabled = false;
+          button.textContent = "Request email change";
+          submitting = false;
+        }
+      });
+    </script>
+  </body>
+</html>

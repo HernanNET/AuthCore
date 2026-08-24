@@ -1,0 +1,112 @@
+---
+import { getCurrentSession } from "@/lib/session";
+
+const session = await getCurrentSession(Astro.request.headers);
+if (!session) return Astro.redirect("/login");
+const enabled = session.user.twoFactorEnabled;
+---
+<!doctype html>
+<html lang="en">
+  <head><meta charset="utf-8" /><meta name="viewport" content="width=device-width" /><title>Two-factor authentication — AuthCore</title></head>
+  <body>
+    <main class="container">
+      <h1>Two-factor authentication</h1>
+      <p id="current-status" class="status">Status: <strong>{enabled ? "Enabled" : "Disabled"}</strong></p>
+
+      {!enabled ? (
+        <section id="enable-section">
+          <p>Use a TOTP authenticator app to protect password sign-in.</p>
+          <form id="enable-form">
+            <label for="password">Current password</label>
+            <input id="password" type="password" autocomplete="current-password" required />
+            <p id="enable-error" class="error" role="alert" hidden></p>
+            <button id="enable-button" type="submit">Begin setup</button>
+          </form>
+        </section>
+      ) : (
+        <section id="disable-section">
+          <p>Your credential sign-ins require a second factor.</p>
+          <form id="disable-form">
+            <label for="disable-password">Current password</label>
+            <input id="disable-password" type="password" autocomplete="current-password" required />
+            <p id="disable-error" class="error" role="alert" hidden></p>
+            <button id="disable-button" class="danger" type="submit">Disable two-factor</button>
+          </form>
+        </section>
+      )}
+
+      <section id="enrollment" hidden>
+        <h2>Set up your authenticator</h2>
+        <p>Open this URI with your authenticator app or copy it into the app:</p>
+        <a id="totp-uri" href="#">Open authenticator</a>
+        <code id="totp-uri-text"></code>
+        <h3>Recovery codes</h3>
+        <p>Save these codes now. Each code can be used only once.</p>
+        <ul id="backup-codes"></ul>
+        <form id="verify-form">
+          <label for="totp-code">6-digit code</label>
+          <input id="totp-code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" required />
+          <p id="verify-error" class="error" role="alert" hidden></p>
+          <button id="verify-button" type="submit">Verify and enable</button>
+        </form>
+      </section>
+
+      <section id="setup-success" hidden><h2>Two-factor enabled</h2><p>Your next password sign-in will require a TOTP or recovery code.</p></section>
+      <p class="back"><a href="/account">Back to account</a></p>
+    </main>
+
+    <style>
+      body{font-family:system-ui,sans-serif;background:#f6f7f9;color:#111;margin:0;padding:2rem}.container{max-width:30rem;margin:2rem auto;background:#fff;border:1px solid #e3e6ea;border-radius:10px;padding:1.75rem}h1{font-size:1.4rem;margin:0 0 1rem}h2{font-size:1.15rem}label{display:block;font-weight:600;font-size:.88rem;margin:.8rem 0 .35rem}input{box-sizing:border-box;width:100%;padding:.65rem;border:1px solid #c7ccd2;border-radius:6px;font-size:1rem}button{width:100%;margin-top:1rem;padding:.7rem;border:0;border-radius:6px;background:#4c6ef5;color:#fff;font-weight:700;cursor:pointer}.danger{background:#c92a2a}.status{background:#f1f3f5;padding:.65rem;border-radius:6px}code{display:block;overflow-wrap:anywhere;background:#f1f3f5;padding:.65rem;margin:.65rem 0;font-size:.78rem}.error{color:#c92a2a}.back{text-align:center;margin-top:1.25rem}a{color:#4c6ef5}ul{columns:2;padding-left:1.5rem}
+    </style>
+
+    <script>
+      import { disableTwoFactor, enableTwoFactor, verifyTwoFactorTotp } from "@/lib/auth-facade";
+      const enableForm = document.getElementById("enable-form") as HTMLFormElement | null;
+      const disableForm = document.getElementById("disable-form") as HTMLFormElement | null;
+      const enrollment = document.getElementById("enrollment") as HTMLElement;
+      const success = document.getElementById("setup-success") as HTMLElement;
+
+      enableForm?.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const password = (document.getElementById("password") as HTMLInputElement).value;
+        const error = document.getElementById("enable-error") as HTMLElement;
+        error.hidden = true;
+        const result = await enableTwoFactor(password);
+        if (result.error || !result.data || result.data.method !== "totp") {
+          error.textContent = "Unable to begin setup. Check your current password.";
+          error.hidden = false;
+          return;
+        }
+        (document.getElementById("password") as HTMLInputElement).value = "";
+        enableForm.hidden = true;
+        const uriLink = document.getElementById("totp-uri") as HTMLAnchorElement;
+        uriLink.href = result.data.totpURI;
+        (document.getElementById("totp-uri-text") as HTMLElement).textContent = result.data.totpURI;
+        const codes = document.getElementById("backup-codes") as HTMLUListElement;
+        for (const value of result.data.backupCodes) {
+          const item = document.createElement("li"); item.textContent = value; codes.append(item);
+        }
+        enrollment.hidden = false;
+      });
+
+      (document.getElementById("verify-form") as HTMLFormElement).addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const input = document.getElementById("totp-code") as HTMLInputElement;
+        const error = document.getElementById("verify-error") as HTMLElement;
+        if (!/^\d{6}$/.test(input.value)) { error.textContent = "Enter a valid 6-digit code."; error.hidden = false; return; }
+        const result = await verifyTwoFactorTotp(input.value);
+        if (result.error) { error.textContent = "The authenticator code is invalid or expired."; error.hidden = false; return; }
+        input.value = ""; enrollment.hidden = true; success.hidden = false;
+      });
+
+      disableForm?.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const input = document.getElementById("disable-password") as HTMLInputElement;
+        const error = document.getElementById("disable-error") as HTMLElement;
+        const result = await disableTwoFactor(input.value);
+        if (result.error) { error.textContent = "Unable to disable two-factor. Check your password."; error.hidden = false; return; }
+        window.location.reload();
+      });
+    </script>
+  </body>
+</html>

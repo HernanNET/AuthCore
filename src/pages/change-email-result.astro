@@ -1,0 +1,45 @@
+---
+import { getCurrentSession } from "@/lib/session";
+
+const status = Astro.url.searchParams.get("status");
+const error = Astro.url.searchParams.get("error");
+const session = await getCurrentSession(Astro.request.headers);
+const succeeded = status === "processed" && !error;
+---
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Email change — AuthCore</title>
+  </head>
+  <body>
+    <main class="container">
+      {succeeded ? (
+        <section id="change-email-success">
+          <h1>Email-change step completed</h1>
+          <p>The link was processed securely.</p>
+          <p>Check the new email address for a verification link. If you already used that link, the change is complete.</p>
+          {session && <p>Current account email: <strong id="result-email">{session.user.email}</strong></p>}
+        </section>
+      ) : (
+        <section id="change-email-error">
+          <h1>Email change failed</h1>
+          <p>The link is invalid or has expired. Start a new request from your account.</p>
+        </section>
+      )}
+      <p class="back-link"><a href={session ? "/account" : "/login"}>{session ? "Back to account" : "Sign in"}</a></p>
+    </main>
+
+    <style>
+      body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; background: #f6f7f9; color: #111; margin: 0; padding: 2rem; }
+      .container { max-width: 28rem; margin: 2rem auto; background: #fff; border: 1px solid #e3e6ea; border-radius: 10px; padding: 1.75rem; }
+      h1 { font-size: 1.4rem; margin: 0 0 1rem; }
+      #change-email-success h1 { color: #2b8a3e; }
+      #change-email-error h1 { color: #c92a2a; }
+      p { line-height: 1.5; overflow-wrap: anywhere; }
+      .back-link { text-align: center; margin: 1.25rem 0 0; font-size: .9rem; }
+      a { color: #4c6ef5; text-decoration: none; }
+    </style>
+  </body>
+</html>
