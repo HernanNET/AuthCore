@@ -69,7 +69,7 @@ if (env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET) {
 export const auth = betterAuth({
   appName: "AuthCore",
   baseURL: env.BETTER_AUTH_URL,
-  trustedOrigins: [env.BETTER_AUTH_ORIGIN],
+  trustedOrigins: [env.BETTER_AUTH_ORIGIN, ...env.AUTHCORE_TRUSTED_ORIGINS],
   secret: env.BETTER_AUTH_SECRET,
   database: pool,
   user: {

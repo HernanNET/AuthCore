@@ -117,6 +117,54 @@ const runtime = validateRuntimeConfig({
   googleClientSecret,
 });
 
+/**
+ * Optional, comma-separated list of additional first-party origins allowed to
+ * call the auth API (e.g. an admin panel served from another subdomain).
+ * Each entry must be an absolute origin only; duplicates of the auth origin
+ * are discarded. In production every entry must be HTTPS on a non-loopback
+ * host, matching the runtime rules for BETTER_AUTH_URL.
+ */
+const rawTrustedOrigins = optional("AUTHCORE_TRUSTED_ORIGINS");
+const AUTHCORE_TRUSTED_ORIGINS: string[] = Array.from(
+      new Set(
+        rawTrustedOrigins
+          .split(",")
+          .map((value) => value.trim())
+          .filter(Boolean)
+          .map((value) => {
+            let parsed: URL;
+            try {
+              parsed = new URL(value);
+            } catch {
+              throw new Error(
+                `Invalid AUTHCORE_TRUSTED_ORIGINS entry: "${value}". Each entry must be an absolute URL origin.`,
+              );
+            }
+            if (
+              parsed.username ||
+              parsed.password ||
+              parsed.search ||
+              parsed.hash ||
+              parsed.pathname !== "/"
+            ) {
+              throw new Error(
+                `Invalid AUTHCORE_TRUSTED_ORIGINS entry: "${value}". Entries must contain only the origin.`,
+              );
+            }
+            if (authEnvironment === "production") {
+              const loopback = new Set(["localhost", "127.0.0.1", "::1"]);
+              if (parsed.protocol !== "https:" || loopback.has(parsed.hostname)) {
+                throw new Error(
+                  `Invalid AUTHCORE_TRUSTED_ORIGINS entry: "${value}". Production entries must use HTTPS on a non-loopback host.`,
+                );
+              }
+            }
+            return parsed.origin;
+          }),
+      ),
+    )
+    .filter((origin) => origin !== runtime.origin);
+
 export const env = {
   AUTH_ENV: authEnvironment,
   BETTER_AUTH_SECRET: required("BETTER_AUTH_SECRET"),
@@ -124,6 +172,7 @@ export const env = {
   // This test-only override never changes the database or secret selected above.
   BETTER_AUTH_URL: betterAuthURL,
   BETTER_AUTH_ORIGIN: runtime.origin,
+  AUTHCORE_TRUSTED_ORIGINS,
   AUTHCORE_PROXY_MODE: runtime.proxyMode,
   isSecureOrigin: runtime.secureOrigin,
   DATABASE_URL: required("DATABASE_URL"),
