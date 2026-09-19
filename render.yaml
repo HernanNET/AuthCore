@@ -1,0 +1,35 @@
+# Render blueprint for AuthCore (Better Auth + PostgreSQL over Neon).
+# Deploys the Docker image built from the repo's Dockerfile.
+# Values marked sync:false are requested once at creation and stay out of git.
+
+services:
+  - type: web
+    name: authcore
+    runtime: docker
+    plan: free
+    healthCheckPath: /api/health
+    envVars:
+      - key: AUTH_ENV
+        value: production
+      - key: BETTER_AUTH_URL
+        sync: false
+      - key: BETTER_AUTH_SECRET
+        generateValue: true
+      - key: DATABASE_URL
+        sync: false
+      - key: AUTHCORE_PROXY_MODE
+        value: direct
+      - key: AUTHCORE_COOKIE_DOMAIN
+        value: .italyaistudio.com
+      - key: AUTHCORE_TRUSTED_ORIGINS
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: AUTHCORE_EMAIL_FROM
+        sync: false
+      - key: EMAIL_VERIFICATION_EXPIRES_IN_SECONDS
+        value: 3600
+      - key: PASSWORD_RESET_EXPIRES_IN_SECONDS
+        value: 3600
+      - key: ACCOUNT_DELETION_EXPIRES_IN_SECONDS
+        value: 3600
