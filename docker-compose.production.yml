@@ -48,3 +48,4 @@ services:
     cap_drop:
       - ALL
     stop_grace_period: 15s
+  AUTHCORE_COOKIE_DOMAIN: 

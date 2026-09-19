@@ -13,114 +13,76 @@ import {
   capturedPasswordResetTransport,
   capturedSecurityAlertTransport,
 } from "./captured-mailbox";
+import { createResendTransports } from "./resend-transport";
 
 /**
- * Selects the verification email transport based on environment.
+ * Selects the email transports based on environment.
  *
  * - Test / development: file-based captured mailbox (no real email sent).
- * - Production: a real provider transport must be supplied. Until one is
- *   configured, we fail safely by throwing instead of pretending delivery.
- *
- * No production vendor (Resend, SendGrid, etc.) is added in Phase 2.
+ * - Production with RESEND_API_KEY + AUTHCORE_EMAIL_FROM: Resend HTTP API.
+ * - Production without them: sending throws instead of pretending delivery,
+ *   so a misconfigured deployment is visible as soon as an email is needed.
  */
-function resolveTransport(): VerificationEmailTransport {
-  if (env.isTestMode || env.AUTH_ENV === "development") {
-    return capturedMailboxTransport;
-  }
-  return {
-    async sendVerificationEmail() {
-      throw new Error(
-        "No production email transport is configured. " +
-          "Set up a real provider before deploying to production.",
-      );
-    },
-  };
+const useCapturedMailbox = env.isTestMode || env.AUTH_ENV === "development";
+
+const productionTransports =
+  !useCapturedMailbox && env.RESEND_API_KEY && env.AUTHCORE_EMAIL_FROM
+    ? createResendTransports({
+        apiKey: env.RESEND_API_KEY,
+        fromAddress: env.AUTHCORE_EMAIL_FROM,
+      })
+    : null;
+
+function missingTransportError(): never {
+  throw new Error(
+    "No production email transport is configured. " +
+      "Set RESEND_API_KEY and AUTHCORE_EMAIL_FROM before deploying to production.",
+  );
 }
 
 export const verificationEmailTransport: VerificationEmailTransport =
-  resolveTransport();
-
-function resolvePasswordResetTransport(): PasswordResetEmailTransport {
-  if (env.isTestMode || env.AUTH_ENV === "development") {
-    return capturedPasswordResetTransport;
-  }
-  return {
-    async sendPasswordResetEmail() {
-      throw new Error(
-        "No production password-reset email transport is configured. " +
-          "Set up a real provider before deploying to production.",
-      );
-    },
-  };
-}
+  useCapturedMailbox
+    ? capturedMailboxTransport
+    : productionTransports?.verificationEmailTransport ?? {
+        async sendVerificationEmail() {
+          missingTransportError();
+        },
+      };
 
 export const passwordResetEmailTransport: PasswordResetEmailTransport =
-  resolvePasswordResetTransport();
-
-function resolveChangeEmailConfirmationTransport(): ChangeEmailConfirmationTransport {
-  if (env.isTestMode || env.AUTH_ENV === "development") {
-    return capturedChangeEmailConfirmationTransport;
-  }
-  return {
-    async sendChangeEmailConfirmation() {
-      throw new Error(
-        "No production change-email transport is configured. " +
-          "Set up a real provider before deploying to production.",
-      );
-    },
-  };
-}
+  useCapturedMailbox
+    ? capturedPasswordResetTransport
+    : productionTransports?.passwordResetEmailTransport ?? {
+        async sendPasswordResetEmail() {
+          missingTransportError();
+        },
+      };
 
 export const changeEmailConfirmationTransport: ChangeEmailConfirmationTransport =
-  resolveChangeEmailConfirmationTransport();
-
-function resolveAccountDeletionTransport(): AccountDeletionEmailTransport {
-  if (env.isTestMode || env.AUTH_ENV === "development") {
-    return capturedAccountDeletionTransport;
-  }
-  return {
-    async sendAccountDeletionEmail() {
-      throw new Error(
-        "No production account-deletion email transport is configured. " +
-          "Set up a real provider before deploying to production.",
-      );
-    },
-  };
-}
+  useCapturedMailbox
+    ? capturedChangeEmailConfirmationTransport
+    : productionTransports?.changeEmailConfirmationTransport ?? {
+        async sendChangeEmailConfirmation() {
+          missingTransportError();
+        },
+      };
 
 export const accountDeletionEmailTransport: AccountDeletionEmailTransport =
-  resolveAccountDeletionTransport();
-
-function resolveSecurityAlertTransport(): SecurityAlertEmailTransport {
-  if (env.isTestMode || env.AUTH_ENV === "development") {
-    return capturedSecurityAlertTransport;
-  }
-  return {
-    async sendSecurityAlert() {
-      throw new Error(
-        "No production security-alert email transport is configured. " +
-          "Set up a real provider before deploying to production.",
-      );
-    },
-  };
-}
+  useCapturedMailbox
+    ? capturedAccountDeletionTransport
+    : productionTransports?.accountDeletionEmailTransport ?? {
+        async sendAccountDeletionEmail() {
+          missingTransportError();
+        },
+      };
 
 export const securityAlertEmailTransport: SecurityAlertEmailTransport =
-  resolveSecurityAlertTransport();
+  useCapturedMailbox
+    ? capturedSecurityAlertTransport
+    : productionTransports?.securityAlertEmailTransport ?? {
+        async sendSecurityAlert() {
+          missingTransportError();
+        },
+      };
 
-export type {
-  VerificationEmailTransport,
-  PasswordResetEmailTransport,
-  ChangeEmailConfirmationTransport,
-  AccountDeletionEmailTransport,
-  SecurityAlertEmailTransport,
-  CapturedVerificationEmail,
-  CapturedEmailPurpose,
-} from "./transport";
-export {
-  storeCapturedEmail,
-  storeCapturedSecurityAlert,
-  getCapturedEmails,
-  clearCapturedEmails,
-  clearAllCapturedEmails,
-} from "./captured-mailbox";
+export { getCapturedEmails, clearAllCapturedEmails } from "./captured-mailbox";

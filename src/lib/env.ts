@@ -173,6 +173,17 @@ export const env = {
   BETTER_AUTH_URL: betterAuthURL,
   BETTER_AUTH_ORIGIN: runtime.origin,
   AUTHCORE_TRUSTED_ORIGINS,
+  /**
+   * Optional registrable domain (e.g. ".example.com") so the session cookie is
+   * shared across first-party subdomains such as an admin panel. Empty value
+   * keeps cookies bound to the auth origin only.
+   */
+  AUTHCORE_COOKIE_DOMAIN: optional("AUTHCORE_COOKIE_DOMAIN") || undefined,
+  /** Selects the PostgreSQL client implementation: "pg" (default, Node) or "neon" (Workers). */
+  AUTHCORE_DRIVER: optional("AUTHCORE_DRIVER") || "pg",
+  /** Production email delivery over the Resend HTTP API. */
+  RESEND_API_KEY: optional("RESEND_API_KEY") || undefined,
+  AUTHCORE_EMAIL_FROM: optional("AUTHCORE_EMAIL_FROM") || undefined,
   AUTHCORE_PROXY_MODE: runtime.proxyMode,
   isSecureOrigin: runtime.secureOrigin,
   DATABASE_URL: required("DATABASE_URL"),

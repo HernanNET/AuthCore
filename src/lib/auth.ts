@@ -157,6 +157,14 @@ export const auth = betterAuth({
     useSecureCookies: env.isSecureOrigin,
     disableCSRFCheck: false,
     disableOriginCheck: false,
+    ...(env.AUTHCORE_COOKIE_DOMAIN
+      ? {
+          crossSubDomainCookies: {
+            enabled: true,
+            domain: env.AUTHCORE_COOKIE_DOMAIN,
+          },
+        }
+      : {}),
     ipAddress: {
       ipAddressHeaders: ["x-authcore-client-ip"],
       ipv6Subnet: 64,

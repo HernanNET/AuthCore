@@ -1,9 +1,18 @@
 import { defineConfig } from "astro/config";
 import node from "@astrojs/node";
+import cloudflare from "@astrojs/cloudflare";
+
+/**
+ * The Cloudflare adapter is selected with ASTRO_ADAPTER=cloudflare so local
+ * development, migrations and the Playwright suite keep running on Node while
+ * the production build targets Workers. ASTRO_ADAPTER is only consulted for
+ * `astro build` (the deployment platform sets it).
+ */
+const adapterName = process.env.ASTRO_ADAPTER ?? "node";
 
 export default defineConfig({
   output: "server",
-  adapter: node({ mode: "standalone" }),
+  adapter: adapterName === "cloudflare" ? cloudflare() : node({ mode: "standalone" }),
   security: {
     checkOrigin: true,
     csp: {

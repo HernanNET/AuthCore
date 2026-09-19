@@ -25,9 +25,11 @@
     "test:container": "node scripts/verify-container.mjs"
   },
   "dependencies": {
+    "@astrojs/cloudflare": "^14.3.2",
     "@astrojs/node": "^11.1.4",
     "@better-auth/passkey": "1.7.1",
-    "astro": "^7.2.4",
+    "@neondatabase/serverless": "^1.1.0",
+    "astro": "^7.3.3",
     "better-auth": "^1.7.1",
     "dotenv": "^17.4.2",
     "pg": "^8.23.0"
