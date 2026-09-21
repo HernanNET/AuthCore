@@ -45,11 +45,14 @@ export async function signIn(input: {
   email: string;
   password: string;
   rememberMe?: boolean;
+  /** First-party return URL validated server-side against trusted origins. */
+  callbackURL?: string;
 }) {
   return client.signIn.email({
     email: input.email,
     password: input.password,
     rememberMe: input.rememberMe ?? true,
+    ...(input.callbackURL ? { callbackURL: input.callbackURL } : {}),
   });
 }
 
@@ -121,6 +124,27 @@ export async function disableTwoFactor(password: string) {
 
 export async function signInWithPasskey() {
   return client.signIn.passkey();
+}
+
+/**
+ * Client-side guard for first-party return URLs from the login page. Only
+ * relative paths or HTTPS hosts under the configured first-party domain are
+ * accepted; the server independently validates against trusted origins.
+ */
+export function safeCallbackURL(value: string | null, allowedHostSuffix: string): string | null {
+  if (!value) return null;
+  if (value.startsWith("/") && !value.startsWith("//")) return value;
+  try {
+    const url = new URL(value);
+    const host = url.hostname.toLowerCase();
+    const suffix = allowedHostSuffix.toLowerCase().replace(/^\./, "");
+    if (url.protocol === "https:" && (host === suffix || host.endsWith(`.${suffix}`))) {
+      return url.toString();
+    }
+  } catch {
+    return null;
+  }
+  return null;
 }
 
 export async function addPasskey(name?: string) {

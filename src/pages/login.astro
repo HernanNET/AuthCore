@@ -173,7 +173,7 @@
     </style>
 
     <script>
-      import { signIn, signInWithGoogle, signInWithPasskey } from "@/lib/auth-facade";
+      import { signIn, signInWithGoogle, signInWithPasskey, safeCallbackURL } from "@/lib/auth-facade";
 
       const form = document.getElementById("login-form") as HTMLFormElement;
       const button = document.getElementById("login-button") as HTMLButtonElement;
@@ -185,6 +185,11 @@
       const passkeyButton = document.getElementById("passkey-button") as HTMLButtonElement;
 
       const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+      // First-party return target from the consuming app (?callbackURL=...).
+      const hostLabels = window.location.hostname.split(".");
+      const firstPartySuffix = hostLabels.slice(-2).join(".");
+      const returnTo = safeCallbackURL(new URLSearchParams(window.location.search).get("callbackURL"), firstPartySuffix) ?? "/account";
 
       function showError(msg: string): void {
         errorEl.textContent = msg;
@@ -240,6 +245,7 @@
             email,
             password,
             rememberMe: rememberInput.checked,
+            callbackURL: returnTo,
           });
           if (error) {
             showError(mapError(error));
@@ -252,7 +258,7 @@
             window.location.href = "/two-factor";
             return;
           }
-          window.location.href = "/account";
+          window.location.href = returnTo;
         } catch (err) {
           showError("Unable to sign in. Please try again.");
           button.disabled = false;
@@ -270,7 +276,7 @@
         clearError();
 
         try {
-          const { error } = await signInWithGoogle("/account");
+          const { error } = await signInWithGoogle(returnTo);
           if (error) {
             showError("Unable to start Google sign-in. Please try again.");
             googleButton.disabled = false;
@@ -301,7 +307,7 @@
             passkeySubmitting = false;
             return;
           }
-          window.location.href = "/account";
+          window.location.href = returnTo;
         } catch {
           showError("Passkey sign-in is unavailable in this browser.");
           passkeyButton.disabled = false;
