@@ -32,6 +32,9 @@ App  ->  Auth Module (facade)  ->  Better Auth  ->  PostgreSQL
 - **Phase 19**: HTTP security headers, hashed CSP, cache protection, and HTTPS-only HSTS
 - **Phase 20**: Production runtime validation, trusted client IPs, secure cookies, and readiness
 - **Phase 21**: Reproducible non-root Docker image, migrations, healthcheck, and graceful shutdown
+- **Phase 22**: Machine-facing session verification (`GET /api/authcore/verify`) for first-party apps
+- **Phase 23**: First-party `callbackURL` on login (email, Google, passkey) with a safe-redirect guard
+- **Phase 24**: Machine-facing user provisioning (`POST /api/authcore/provision`) behind a shared secret, for creating verified `seller`/`admin` credentials without email delivery
 
 ## Container deployment
 

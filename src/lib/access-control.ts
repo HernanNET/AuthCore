@@ -17,7 +17,17 @@ export const authUserRole = authAccessControl.newRole({
   session: [],
 });
 
+/**
+ * Phase 24: sellers authenticate in AuthCore but are authorized by the consuming
+ * application, so the role carries no AuthCore-side permission at all.
+ */
+export const authSellerRole = authAccessControl.newRole({
+  user: [],
+  session: [],
+});
+
 export const authRoles = {
   admin: authAdminRole,
+  seller: authSellerRole,
   user: authUserRole,
 };

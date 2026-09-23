@@ -184,6 +184,11 @@ export const env = {
   /** Production email delivery over the Resend HTTP API. */
   RESEND_API_KEY: optional("RESEND_API_KEY") || undefined,
   AUTHCORE_EMAIL_FROM: optional("AUTHCORE_EMAIL_FROM") || undefined,
+  /**
+   * Shared secret for the machine-facing user provisioning endpoint
+   * (POST /api/authcore/provision). Unset disables the endpoint (fail-closed).
+   */
+  AUTHCORE_PROVISION_SECRET: optional("AUTHCORE_PROVISION_SECRET") || undefined,
   AUTHCORE_PROXY_MODE: runtime.proxyMode,
   isSecureOrigin: runtime.secureOrigin,
   DATABASE_URL: required("DATABASE_URL"),
