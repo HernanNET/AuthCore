@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { resolveClientIp, withTrustedClientIp } from "@/lib/client-ip";
 import { pool } from "@/lib/database";
 import { env } from "@/lib/env";
+import { isAdminUser } from "@/lib/session";
 import {
   recordSecurityEvent,
   requestMetadata,
@@ -63,6 +64,31 @@ function protectedResponse(): Response {
     status: 400,
     headers: { "content-type": "application/json; charset=utf-8" },
   });
+}
+
+function twoFactorRequiredResponse(): Response {
+  return new Response(
+    JSON.stringify({ message: "Two-factor authentication is required for administration." }),
+    {
+      status: 403,
+      headers: { "content-type": "application/json; charset=utf-8" },
+    },
+  );
+}
+
+/**
+ * Phase 26: administration is only available to administrators who enabled
+ * two-factor authentication. Enforced server-side on every /admin/* endpoint,
+ * in addition to the UI redirect handled by requireAdminUser.
+ */
+function enforceAdminTwoFactor(
+  authPath: string,
+  sessionUser: typeof auth.$Infer.Session.user,
+): Response | null {
+  if (!authPath.startsWith("/admin/")) return null;
+  if (!isAdminUser(sessionUser)) return null;
+  if (sessionUser.twoFactorEnabled !== true) return twoFactorRequiredResponse();
+  return null;
 }
 
 /**
@@ -129,6 +155,8 @@ export const ALL: APIRoute = async (ctx) => {
   const requestCopy = targetEventType ? trustedRequest.clone() : null;
   const sessionBefore = await auth.api.getSession({ headers: trustedRequest.headers });
   if (sessionBefore) {
+    const twoFactorResponse = enforceAdminTwoFactor(authPath, sessionBefore.user);
+    if (twoFactorResponse) return twoFactorResponse;
     const guardResponse = await enforceProtectedAdminGuard(
       authPath,
       trustedRequest,

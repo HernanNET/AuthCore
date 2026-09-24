@@ -14,6 +14,7 @@ import {
   registerAndVerifyUser,
   uniqueEmail,
 } from "../helpers/auth-flow";
+import { createTwoFactorAdmin } from "../helpers/two-factor";
 
 const BASE = process.env.AUTHCORE_TEST_URL ?? "http://localhost:4321";
 
@@ -22,12 +23,7 @@ test.afterEach(async () => { await cleanupTestUsers(); await clearAllMailbox(); 
 test.afterAll(async () => { await closeDb(); });
 
 async function createAdmin(page: Page, name = "Phase Twenty Five Admin") {
-  const email = await registerAndVerifyUser(page, name);
-  await setUserRole(email, "admin");
-  await loginUser(page, email);
-  await page.waitForURL(/\/account/);
-  const user = await findUserByEmail(email);
-  return { email, user };
+  return createTwoFactorAdmin(page, name);
 }
 
 async function acceptNextDialog(page: Page) {

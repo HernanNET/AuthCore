@@ -1,0 +1,73 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.6.0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Start PostgreSQL (docker compose)
+        run: docker compose up -d
+
+      - name: Wait for PostgreSQL
+        run: |
+          for i in $(seq 1 30); do
+            if docker exec authcore-postgres pg_isready -U authcore -d authcore_dev; then
+              exit 0
+            fi
+            sleep 2
+          done
+          exit 1
+
+      - name: Create test environment file
+        run: |
+          SECRET=$(node -e "console.log(require('crypto').randomBytes(48).toString('base64'))")
+          cat > .env.test <<EOF
+          BETTER_AUTH_SECRET=$SECRET
+          BETTER_AUTH_URL=http://localhost:4321
+          DATABASE_URL=postgres://authcore:authcore_dev@localhost:5432/authcore_test
+          EMAIL_VERIFICATION_EXPIRES_IN_SECONDS=2
+          PASSWORD_RESET_EXPIRES_IN_SECONDS=3600
+          ACCOUNT_DELETION_EXPIRES_IN_SECONDS=3600
+          GOOGLE_CLIENT_ID=
+          GOOGLE_CLIENT_SECRET=
+          AUTH_ENV=test
+          AUTHCORE_PROXY_MODE=direct
+          AUTHCORE_TRUSTED_ORIGINS=
+          AUTHCORE_COOKIE_DOMAIN=
+          AUTHCORE_PROVISION_SECRET=ci-provision-secret
+          EOF
+
+      - name: Migrate test database
+        run: pnpm db:migrate:test
+
+      - name: Type check
+        run: pnpm check
+
+      - name: Build
+        run: pnpm build
+
+      - name: Install Playwright Chromium
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: E2E suite (main)
+        run: pnpm test:e2e:main

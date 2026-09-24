@@ -53,7 +53,9 @@ Uncoordinated changes to that surface can silently break consumers. This ADR loc
 5. **Protections.** Protected accounts (the acting admin itself and any admin-role
    user) cannot be banned, deleted, demoted, or have their password set, enforced
    server-side in `/api/auth/*` — not only in the UI. This also guarantees that the
-   last administrator can never be removed through the Admin UI.
+   last administrator can never be removed through the Admin UI. Administrators
+   must enable **two-factor authentication** before any administrative access
+   (Phase 26 policy), enforced on the Admin UI and on every `/admin/*` endpoint.
 
 ## Compatibility matrix
 

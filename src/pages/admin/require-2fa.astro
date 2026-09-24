@@ -1,0 +1,38 @@
+---
+import { getCurrentSession } from "@/lib/session";
+
+const session = await getCurrentSession(Astro.request.headers);
+if (!session) return Astro.redirect("/login");
+---
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width" />
+    <title>Two-factor required — AuthCore</title>
+  </head>
+  <body>
+    <main class="container">
+      <h1>Two-factor authentication required</h1>
+      <p class="muted">
+        Administration is protected by a mandatory two-factor authentication policy.
+        Enable it from your account settings before accessing the administration area.
+      </p>
+      <div class="actions">
+        <a class="primary" href="/account">Enable two-factor authentication</a>
+        <a class="secondary" href="/account">Back to account</a>
+      </div>
+    </main>
+
+    <style>
+      body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; background: #f6f7f9; color: #111; margin: 0; padding: 2rem; }
+      .container { max-width: 32rem; margin: 2rem auto; background: #fff; border: 1px solid #e3e6ea; border-radius: 10px; padding: 1.75rem; }
+      h1 { margin: 0 0 0.5rem; font-size: 1.4rem; }
+      .muted { color: #6c757d; margin-bottom: 1.5rem; }
+      .actions { display: flex; gap: 0.75rem; align-items: center; }
+      .primary { display: inline-block; background: #364fc7; color: #fff; padding: 0.55rem 1rem; border-radius: 6px; text-decoration: none; font-weight: 600; }
+      .primary:hover { background: #2b3fa0; }
+      .secondary { color: #364fc7; padding: 0.55rem 1rem; text-decoration: none; }
+    </style>
+  </body>
+</html>

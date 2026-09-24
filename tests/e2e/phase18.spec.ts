@@ -9,6 +9,7 @@ import {
 } from "../helpers/db";
 import { clearAllMailbox } from "../helpers/mailbox";
 import { loginUser, registerAndVerifyUser } from "../helpers/auth-flow";
+import { createTwoFactorAdmin } from "../helpers/two-factor";
 
 const BASE = process.env.AUTHCORE_TEST_URL ?? "http://localhost:4321";
 
@@ -17,11 +18,7 @@ test.afterEach(async () => { await cleanupTestUsers(); await clearAllMailbox(); 
 test.afterAll(async () => { await closeDb(); });
 
 async function createAdmin(page: Page, name = "Phase Eighteen Admin") {
-  const email = await registerAndVerifyUser(page, name);
-  await setUserRole(email, "admin");
-  await loginUser(page, email);
-  await page.waitForURL(/\/account/);
-  const user = await findUserByEmail(email);
+  const { email, user } = await createTwoFactorAdmin(page, name);
   return { email, user };
 }
 

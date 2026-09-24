@@ -7,6 +7,7 @@ import {
   registerAndVerifyUser,
   uniqueEmail,
 } from "../helpers/auth-flow";
+import { createTwoFactorAdmin } from "../helpers/two-factor";
 
 const BASE = process.env.AUTHCORE_TEST_URL ?? "http://localhost:4321";
 
@@ -67,10 +68,7 @@ test("4 — regular users cannot call native admin endpoints", async ({ page }) 
 });
 
 test("5 — an administrator sees the protected read-only user overview", async ({ page }) => {
-  const email = await registerAndVerifyUser(page, "Authorized Admin User");
-  await setUserRole(email, "admin");
-  await loginUser(page, email);
-  await page.waitForURL(/\/account/);
+  const { email } = await createTwoFactorAdmin(page, "Authorized Admin User");
   await expect(page.locator("#user-role")).toHaveText("admin");
   await expect(page.locator("#admin-link")).toBeVisible();
   await page.click("#admin-link");
@@ -80,10 +78,7 @@ test("5 — an administrator sees the protected read-only user overview", async 
 });
 
 test("6 — changing a database role invalidates authorization immediately", async ({ page }) => {
-  const email = await registerAndVerifyUser(page, "Demoted Admin User");
-  await setUserRole(email, "admin");
-  await loginUser(page, email);
-  await page.waitForURL(/\/account/);
+  const { email } = await createTwoFactorAdmin(page, "Demoted Admin User");
   await page.goto(`${BASE}/admin`);
   await expect(page.getByRole("heading", { name: "Administration", exact: true })).toBeVisible();
 

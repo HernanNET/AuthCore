@@ -73,6 +73,8 @@ export async function requireAuthenticatedUser(
 /**
  * Require a server-validated administrator session.
  * Anonymous visitors go to login; authenticated non-admins receive HTTP 403.
+ * Administrators must have enabled two-factor authentication (Phase 26 policy);
+ * those without it are redirected to the guidance page instead.
  */
 export async function requireAdminUser(
   astro: { request: Request; redirect: (path: string) => Response },
@@ -86,6 +88,9 @@ export async function requireAdminUser(
       status: 403,
       headers: { "content-type": "text/plain; charset=utf-8" },
     });
+  }
+  if (session.user.twoFactorEnabled !== true) {
+    return astro.redirect("/admin/require-2fa");
   }
   return session;
 }
