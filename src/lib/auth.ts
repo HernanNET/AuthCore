@@ -151,6 +151,19 @@ export const auth = betterAuth({
       "/request-password-reset": protectedRateLimit({ window: 300, max: 3 }),
       "/two-factor/*": protectedRateLimit({ window: 60, max: 5 }),
       "/passkey/*": protectedRateLimit({ window: 60, max: 20 }),
+      // Phase 25: destructive administration is throttled per IP even for
+      // admins (defense-in-depth; the protected-account guard and audit trail
+      // handle authorization and accountability).
+      "/admin/create-user": protectedRateLimit({ window: 60, max: 10 }),
+      "/admin/update-user": protectedRateLimit({ window: 60, max: 10 }),
+      "/admin/set-role": protectedRateLimit({ window: 60, max: 10 }),
+      "/admin/set-user-password": protectedRateLimit({ window: 60, max: 10 }),
+      "/admin/remove-user": protectedRateLimit({ window: 60, max: 10 }),
+      "/admin/ban-user": protectedRateLimit({ window: 60, max: 10 }),
+      "/admin/unban-user": protectedRateLimit({ window: 60, max: 10 }),
+      "/admin/revoke-user-session": protectedRateLimit({ window: 60, max: 10 }),
+      "/admin/revoke-user-sessions": protectedRateLimit({ window: 60, max: 10 }),
+      "/admin/list-user-sessions": protectedRateLimit({ window: 60, max: 60 }),
     },
   },
   advanced: {
