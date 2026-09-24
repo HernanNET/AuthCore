@@ -217,7 +217,7 @@ export async function revokeOtherActiveSessions() {
   return client.revokeOtherSessions();
 }
 
-/** Phase 18 admin facade: intentionally excludes role changes and impersonation. */
+/** Admin facade (Phase 18 + Phase 25 user CRUD). Impersonation stays excluded. */
 export async function banManagedUser(userId: string) {
   return client.admin.banUser({
     userId,
@@ -231,4 +231,55 @@ export async function unbanManagedUser(userId: string) {
 
 export async function revokeManagedUserSessions(userId: string) {
   return client.admin.revokeUserSessions({ userId });
+}
+
+/** Roles managed by the administration UI (part of the integration contract). */
+export type ManagedRole = "user" | "seller" | "admin";
+
+export async function createManagedUser(input: {
+  name: string;
+  email: string;
+  password: string;
+  role?: ManagedRole;
+  emailVerified?: boolean;
+}) {
+  return client.admin.createUser({
+    email: input.email,
+    password: input.password,
+    name: input.name,
+    role: input.role ?? "user",
+    data:
+      input.emailVerified !== undefined
+        ? { emailVerified: input.emailVerified }
+        : undefined,
+  });
+}
+
+export async function updateManagedUser(
+  userId: string,
+  data: { name?: string },
+) {
+  // Email and emailVerified are immutable through the admin update endpoint:
+  // Better Auth rejects both ("You are not allowed to update users email").
+  return client.admin.updateUser({ userId, data });
+}
+
+export async function setManagedUserRole(userId: string, role: ManagedRole) {
+  return client.admin.setRole({ userId, role });
+}
+
+export async function setManagedUserPassword(userId: string, newPassword: string) {
+  return client.admin.setUserPassword({ userId, newPassword });
+}
+
+export async function removeManagedUser(userId: string) {
+  return client.admin.removeUser({ userId });
+}
+
+export async function listManagedUserSessions(userId: string) {
+  return client.admin.listUserSessions({ userId });
+}
+
+export async function revokeManagedUserSession(sessionToken: string) {
+  return client.admin.revokeUserSession({ sessionToken });
 }

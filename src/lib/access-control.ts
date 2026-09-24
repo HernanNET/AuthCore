@@ -2,14 +2,24 @@ import { createAccessControl } from "better-auth/plugins/access";
 import { defaultStatements } from "better-auth/plugins/admin/access";
 
 /**
- * Phase 18 least-privilege administration policy.
+ * Administration policy (Phase 18 + Phase 25 user CRUD).
  * Endpoints not represented here remain forbidden even for an admin role.
+ * Impersonation stays intentionally excluded (evaluated again later).
  */
 export const authAccessControl = createAccessControl(defaultStatements);
 
 export const authAdminRole = authAccessControl.newRole({
-  user: ["list", "get", "ban"],
-  session: ["revoke"],
+  user: [
+    "create",
+    "list",
+    "get",
+    "update",
+    "set-role",
+    "ban",
+    "delete",
+    "set-password",
+  ],
+  session: ["list", "revoke", "delete"],
 });
 
 export const authUserRole = authAccessControl.newRole({

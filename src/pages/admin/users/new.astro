@@ -1,0 +1,94 @@
+---
+import { requireAdminUser } from "@/lib/session";
+
+const authorization = await requireAdminUser(Astro);
+if (authorization instanceof Response) return authorization;
+---
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width" />
+    <title>New user — AuthCore</title>
+  </head>
+  <body>
+    <main class="container">
+      <h1>New user</h1>
+      <p class="muted">Create an identity in AuthCore. Roles are part of the integration contract (user / seller / admin).</p>
+
+      <p id="form-message" class="message" role="status" aria-live="polite"></p>
+
+      <form id="create-form">
+        <div class="field">
+          <label for="name">Name</label>
+          <input id="name" name="name" type="text" maxlength="100" required autocomplete="name" />
+        </div>
+        <div class="field">
+          <label for="email">Email</label>
+          <input id="email" name="email" type="email" maxlength="254" required autocomplete="email" />
+        </div>
+        <div class="field">
+          <label for="password">Password</label>
+          <input id="password" name="password" type="password" minlength="8" maxlength="128" required autocomplete="new-password" />
+        </div>
+        <div class="field">
+          <label for="role">Role</label>
+          <select id="role" name="role">
+            <option value="user" selected>User</option>
+            <option value="seller">Seller</option>
+            <option value="admin">Admin</option>
+          </select>
+        </div>
+        <label class="check">
+          <input id="email-verified" name="emailVerified" type="checkbox" checked />
+          <span>Mark email as verified</span>
+        </label>
+        <div class="actions">
+          <button type="submit" class="primary">Create user</button>
+          <a class="secondary" href="/admin">Cancel</a>
+        </div>
+      </form>
+    </main>
+
+    <style>
+      body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; background: #f6f7f9; color: #111; margin: 0; padding: 2rem; }
+      .container { max-width: 34rem; margin: 2rem auto; background: #fff; border: 1px solid #e3e6ea; border-radius: 10px; padding: 1.75rem; }
+      h1 { margin: 0 0 0.5rem; font-size: 1.5rem; }
+      .muted { color: #6c757d; margin-bottom: 1.5rem; }
+      .field { display: flex; flex-direction: column; gap: 0.3rem; margin-bottom: 1rem; }
+      .field input, .field select { padding: 0.55rem; }
+      .check { display: flex; gap: 0.5rem; align-items: center; font-size: 0.9rem; margin: 1rem 0; }
+      .actions { display: flex; gap: 0.75rem; margin-top: 1.25rem; }
+      .primary { background: #364fc7; color: #fff; border: 0; padding: 0.55rem 1rem; border-radius: 6px; cursor: pointer; font-weight: 600; }
+      .primary:hover { background: #2b3fa0; }
+      .secondary { color: #364fc7; padding: 0.55rem 1rem; text-decoration: none; }
+      .message { min-height: 1.25rem; color: #087f5b; }
+      .message.error { color: #c92a2a; }
+    </style>
+  </body>
+  <script>
+    import { createManagedUser, type ManagedRole } from "@/lib/auth-facade";
+
+    const form = document.getElementById("create-form") as HTMLFormElement;
+    const message = document.getElementById("form-message") as HTMLParagraphElement;
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      message.classList.remove("error");
+      message.textContent = "Creating user…";
+      const name = (document.getElementById("name") as HTMLInputElement).value.trim();
+      const email = (document.getElementById("email") as HTMLInputElement).value.trim();
+      const password = (document.getElementById("password") as HTMLInputElement).value;
+      const role = (document.getElementById("role") as HTMLSelectElement).value as ManagedRole;
+      const emailVerified = (document.getElementById("email-verified") as HTMLInputElement).checked;
+
+      const result = await createManagedUser({ name, email, password, role, emailVerified });
+      if (result.error) {
+        message.classList.add("error");
+        message.textContent = result.error.message || "The user could not be created.";
+        return;
+      }
+      window.location.href = "/admin";
+    });
+  </script>
+</html>

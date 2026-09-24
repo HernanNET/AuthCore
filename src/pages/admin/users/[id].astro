@@ -1,0 +1,251 @@
+---
+import { auth } from "@/lib/auth";
+import { requireAdminUser } from "@/lib/session";
+
+const authorization = await requireAdminUser(Astro);
+if (authorization instanceof Response) return authorization;
+
+const userId = Astro.params.id ?? "";
+const user = await auth.api.getUser({ headers: Astro.request.headers, query: { id: userId } });
+if (!user) {
+  return new Response("Not found", {
+    status: 404,
+    headers: { "content-type": "text/plain; charset=utf-8" },
+  });
+}
+const sessionsResult = await auth.api.listUserSessions({
+  headers: Astro.request.headers,
+  body: { userId },
+});
+const sessions = sessionsResult.sessions ?? [];
+
+const roles = (user.role ?? "user").split(",").map((role) => role.trim()).filter(Boolean);
+const isProtected = user.id === authorization.user.id || roles.includes("admin");
+const isBanned = Boolean(user.banned);
+---
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width" />
+    <title>User — AuthCore</title>
+  </head>
+  <body data-user-id={user.id} data-protected={String(isProtected)}>
+    <main class="container">
+      <div class="head-row">
+        <h1>{user.name}</h1>
+        <a class="secondary" href="/admin">← Administration</a>
+      </div>
+      <p class="muted">{user.email} · role: {roles.join(", ") || "user"} · {isBanned ? "Blocked" : "Active"}{isProtected ? " · protected" : ""}</p>
+
+      <p id="form-message" class="message" role="status" aria-live="polite"></p>
+
+      <section>
+        <h2>Profile</h2>
+        <p class="muted">Email is the immutable identity and cannot be changed by an administrator.</p>
+        <form id="profile-form">
+          <div class="field"><label for="name">Name</label><input id="name" type="text" maxlength="100" value={user.name} /></div>
+          <div class="field"><label for="email">Email (read-only)</label><input id="email" type="email" value={user.email} disabled /></div>
+          <button type="submit" class="primary">Save profile</button>
+        </form>
+      </section>
+
+      <section>
+        <h2>Role</h2>
+        {isProtected ? (
+          <p class="muted">Admins (and your own account) are protected: role cannot be changed here.</p>
+        ) : (
+          <form id="role-form">
+            <div class="field">
+              <label for="role">Role</label>
+              <select id="role">
+                <option value="user" selected={!roles.includes("seller") && !roles.includes("admin")}>User</option>
+                <option value="seller" selected={roles.includes("seller")}>Seller</option>
+                <option value="admin" selected={roles.includes("admin")}>Admin</option>
+              </select>
+            </div>
+            <button type="submit" class="primary">Set role</button>
+          </form>
+        )}
+      </section>
+
+      <section>
+        <h2>Password</h2>
+        {isProtected ? (
+          <p class="muted">Protected accounts cannot have their password reset by an administrator here.</p>
+        ) : (
+          <form id="password-form">
+            <div class="field"><label for="new-password">New password</label><input id="new-password" type="password" minlength="8" maxlength="128" required autocomplete="new-password" /></div>
+            <button type="submit" class="primary">Set password</button>
+          </form>
+        )}
+      </section>
+
+      <section>
+        <div class="head-row">
+          <h2>Sessions</h2>
+          {!isProtected ? <button id="revoke-all" class="secondary" type="button">Revoke all sessions</button> : null}
+        </div>
+        {sessions.length === 0 ? (
+          <p class="muted">No active sessions.</p>
+        ) : (
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>#</th><th>Created</th><th>Expires</th><th></th></tr></thead>
+              <tbody>
+                {sessions.map((session, index) => (
+                  <tr>
+                    <td>{index + 1}</td>
+                    <td>{new Date(session.createdAt).toISOString()}</td>
+                    <td>{new Date(session.expiresAt).toISOString()}</td>
+                    <td>
+                      {isProtected ? <span class="muted">—</span> : <button class="secondary" data-revoke-index={index} type="button">Revoke</button>}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
+      <section class="danger-zone">
+        <h2>Danger zone</h2>
+        {isProtected ? (
+          <p class="muted">Protected accounts cannot be deleted by an administrator here.</p>
+        ) : (
+          <button id="delete-user" class="danger" type="button">Delete this user permanently</button>
+        )}
+      </section>
+    </main>
+
+    <style>
+      body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; background: #f6f7f9; color: #111; margin: 0; padding: 2rem; }
+      .container { max-width: 46rem; margin: 2rem auto; background: #fff; border: 1px solid #e3e6ea; border-radius: 10px; padding: 1.75rem; }
+      h1 { margin: 0; font-size: 1.5rem; }
+      h2 { font-size: 1.1rem; margin: 1.5rem 0 0.5rem; }
+      .head-row { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+      .muted { color: #6c757d; }
+      section { border-top: 1px solid #e3e6ea; margin-top: 1.5rem; padding-top: 0.5rem; }
+      .field { display: flex; flex-direction: column; gap: 0.3rem; margin-bottom: 0.9rem; }
+      .field input, .field select { padding: 0.5rem; max-width: 24rem; }
+      .check { display: flex; gap: 0.5rem; align-items: center; font-size: 0.9rem; margin: 0.75rem 0; }
+      .primary { background: #364fc7; color: #fff; border: 0; padding: 0.5rem 0.9rem; border-radius: 6px; cursor: pointer; font-weight: 600; }
+      .primary:hover { background: #2b3fa0; }
+      .secondary { background: transparent; color: #364fc7; border: 1px solid #b6c2e8; padding: 0.45rem 0.8rem; border-radius: 6px; cursor: pointer; text-decoration: none; }
+      .danger { background: #fff; color: #c92a2a; border: 1px solid #f1c1c1; padding: 0.5rem 0.9rem; border-radius: 6px; cursor: pointer; }
+      .table-wrap { overflow-x: auto; }
+      table { width: 100%; border-collapse: collapse; }
+      th, td { border-bottom: 1px solid #e3e6ea; padding: 0.6rem; text-align: left; font-size: 0.9rem; }
+      th { background: #f8f9fa; }
+      .message { min-height: 1.25rem; color: #087f5b; }
+      .message.error { color: #c92a2a; }
+    </style>
+  </body>
+  <script>
+    import {
+      listManagedUserSessions,
+      removeManagedUser,
+      revokeManagedUserSession,
+      revokeManagedUserSessions,
+      setManagedUserPassword,
+      setManagedUserRole,
+      updateManagedUser,
+      type ManagedRole,
+    } from "@/lib/auth-facade";
+
+    const userId = document.body.dataset.userId ?? "";
+    const isProtected = document.body.dataset.protected === "true";
+    const message = document.getElementById("form-message") as HTMLParagraphElement;
+    // Session tokens are fetched client-side and kept in memory only — they
+    // never appear in the server-rendered HTML.
+    const sessionTokens = new Map<number, string>();
+
+async function loadSessionTokens() {
+  const result = await listManagedUserSessions(userId);
+  if (!result.error) {
+    (result.data?.sessions ?? []).forEach((session, index) => sessionTokens.set(index, session.token));
+  }
+}
+    void loadSessionTokens();
+
+    function flash(text: string, isError = false) {
+      message.classList.toggle("error", isError);
+      message.textContent = text;
+    }
+    function fail(error: unknown) {
+      const detail = (error as { message?: string })?.message ?? "The action could not be completed.";
+      flash(detail, true);
+    }
+
+    document.getElementById("profile-form")?.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      flash("Saving profile…");
+      try {
+        const result = await updateManagedUser(userId, {
+          name: (document.getElementById("name") as HTMLInputElement).value.trim(),
+        });
+        if (result.error) throw result.error;
+        window.location.reload();
+      } catch (error) { fail(error); }
+    });
+
+    document.getElementById("role-form")?.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      flash("Setting role…");
+      try {
+        const result = await setManagedUserRole(userId, (document.getElementById("role") as HTMLSelectElement).value as ManagedRole);
+        if (result.error) throw result.error;
+        window.location.reload();
+      } catch (error) { fail(error); }
+    });
+
+    document.getElementById("password-form")?.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const password = (document.getElementById("new-password") as HTMLInputElement).value;
+      flash("Setting password…");
+      try {
+        const result = await setManagedUserPassword(userId, password);
+        if (result.error) throw result.error;
+        flash("Password updated.");
+        (document.getElementById("new-password") as HTMLInputElement).value = "";
+      } catch (error) { fail(error); }
+    });
+
+    document.getElementById("revoke-all")?.addEventListener("click", async () => {
+      if (!window.confirm("Revoke every session for this user?")) return;
+      flash("Revoking sessions…");
+      try {
+        const result = await revokeManagedUserSessions(userId);
+        if (result.error) throw result.error;
+        window.location.reload();
+      } catch (error) { fail(error); }
+    });
+
+    document.querySelectorAll<HTMLButtonElement>("[data-revoke-index]").forEach((button) => {
+      button.addEventListener("click", async () => {
+        const index = Number(button.dataset.revokeIndex);
+        if (!window.confirm(`Revoke session #${index + 1}?`)) return;
+        flash("Revoking session…");
+        try {
+          const token = sessionTokens.get(index);
+          const result = token
+            ? await revokeManagedUserSession(token)
+            : { error: { message: "Session token not loaded" } };
+          if (result.error) throw result.error;
+          window.location.reload();
+        } catch (error) { fail(error); }
+      });
+    });
+
+    document.getElementById("delete-user")?.addEventListener("click", async () => {
+      if (!window.confirm("Delete this user permanently? This cannot be undone.")) return;
+      flash("Deleting user…");
+      try {
+        const result = await removeManagedUser(userId);
+        if (result.error) throw result.error;
+        window.location.href = "/admin";
+      } catch (error) { fail(error); }
+    });
+  </script>
+</html>

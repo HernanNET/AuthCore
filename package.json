@@ -1,9 +1,9 @@
 {
   "name": "authcore",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
-  "description": "Standalone authentication module (Better Auth + PostgreSQL) — Phases 1–21.",
+  "description": "Standalone authentication module (Better Auth + PostgreSQL) — Phases 1–25, integration contract v1.",
   "packageManager": "pnpm@11.6.0",
   "scripts": {
     "dev": "astro dev",

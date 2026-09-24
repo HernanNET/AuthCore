@@ -13,6 +13,23 @@ const currentPage = Number.isSafeInteger(requestedPage) && requestedPage > 0 ? r
 const pageSize = 20;
 const offset = (currentPage - 1) * pageSize;
 
+// Role and status filters (the typed query supports one filter field; role wins
+// when both are requested).
+const filterRole = Astro.url.searchParams.get("role")?.trim() || "";
+const filterBanned = Astro.url.searchParams.get("banned")?.trim() || "";
+let filterField: string | undefined;
+let filterValue: string | undefined;
+let filterOperator: "eq" | "ne" | "contains" | "starts_with" | "ends_with" | undefined;
+if (["user", "seller", "admin"].includes(filterRole)) {
+  filterField = "role";
+  filterOperator = "eq";
+  filterValue = filterRole;
+} else if (filterBanned === "true" || filterBanned === "false") {
+  filterField = "banned";
+  filterOperator = "eq";
+  filterValue = filterBanned;
+}
+
 // Better Auth revalidates the cookie and the admin permission server-side.
 // No raw session token or privileged database query reaches the browser.
 const result = await auth.api.listUsers({
@@ -25,6 +42,9 @@ const result = await auth.api.listUsers({
     searchValue: rawSearch || undefined,
     searchField,
     searchOperator: "contains",
+    ...(filterField
+      ? { filterField, filterOperator, filterValue }
+      : {}),
   },
 });
 
@@ -33,6 +53,8 @@ const makePageUrl = (page: number) => {
   const params = new URLSearchParams();
   if (rawSearch) params.set("q", rawSearch);
   params.set("field", searchField);
+  if (filterRole) params.set("role", filterRole);
+  if (filterBanned) params.set("banned", filterBanned);
   params.set("page", String(page));
   return `/admin?${params.toString()}`;
 };
@@ -46,8 +68,11 @@ const makePageUrl = (page: number) => {
   </head>
   <body>
     <main class="container">
-      <h1>Administration</h1>
-      <p class="muted">Search users, block access, or revoke sessions. Authorization is checked on the server.</p>
+      <div class="head-row">
+        <h1>Administration</h1>
+        <a class="new-button" href="/admin/users/new">+ New user</a>
+      </div>
+      <p class="muted">Search users, create, edit, block access or revoke sessions. Authorization is checked on the server.</p>
 
       <form class="search-form" method="get" action="/admin">
         <label for="search-field">Search by</label>
@@ -56,6 +81,17 @@ const makePageUrl = (page: number) => {
           <option value="name" selected={searchField === "name"}>Name</option>
         </select>
         <input id="search-query" name="q" type="search" maxlength="100" value={rawSearch} />
+        <select name="role" aria-label="Role filter">
+          <option value="">Any role</option>
+          <option value="user" selected={filterRole === "user"}>User</option>
+          <option value="seller" selected={filterRole === "seller"}>Seller</option>
+          <option value="admin" selected={filterRole === "admin"}>Admin</option>
+        </select>
+        <select name="banned" aria-label="Status filter">
+          <option value="">Any status</option>
+          <option value="false" selected={filterBanned === "false"}>Active</option>
+          <option value="true" selected={filterBanned === "true"}>Blocked</option>
+        </select>
         <button type="submit">Search</button>
       </form>
 
@@ -94,6 +130,7 @@ const makePageUrl = (page: number) => {
                         <button class="action-button danger" data-action="ban" data-user-id={user.id} data-user-email={user.email}>Block</button>
                       )}
                       <button class="action-button" data-action="revoke" data-user-id={user.id} data-user-email={user.email}>Revoke sessions</button>
+                      <a class="action-button" href={`/admin/users/${user.id}`}>Edit</a>
                     </>
                   )}
                 </td>
@@ -128,6 +165,9 @@ const makePageUrl = (page: number) => {
         border-radius: 10px;
         padding: 1.75rem;
       }
+      .head-row { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+      .new-button { display: inline-block; background: #364fc7; color: #fff; padding: 0.5rem 0.9rem; border-radius: 6px; text-decoration: none; font-weight: 600; }
+      .new-button:hover { background: #2b3fa0; }
       h1 { margin: 0 0 0.5rem; font-size: 1.5rem; }
       .muted { color: #6c757d; margin-bottom: 1.5rem; }
       .search-form { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }

@@ -17,6 +17,11 @@ export const SECURITY_EVENT_TYPES = [
   "admin_user_blocked",
   "admin_user_unblocked",
   "admin_sessions_revoked",
+  "admin_user_created",
+  "admin_user_updated",
+  "admin_role_changed",
+  "admin_password_set",
+  "admin_user_deleted",
 ] as const;
 
 export type SecurityEventType = (typeof SECURITY_EVENT_TYPES)[number];
@@ -40,6 +45,11 @@ const ALWAYS_ALERT = new Set<SecurityEventType>([
   "admin_user_blocked",
   "admin_user_unblocked",
   "admin_sessions_revoked",
+  "admin_user_created",
+  "admin_user_updated",
+  "admin_role_changed",
+  "admin_password_set",
+  "admin_user_deleted",
 ]);
 
 async function shouldSendAlert(input: {

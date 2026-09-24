@@ -6,6 +6,12 @@ import {
 } from "@/lib/session";
 
 /**
+ * Frozen integration contract version for first-party consumers. Bump only for
+ * additive (minor) or breaking (major) contract changes; see docs/ADR-0001.
+ */
+const CONTRACT_VERSION = "1";
+
+/**
  * Machine-facing session verification endpoint for first-party consuming
  * applications (e.g. an admin panel served from another trusted origin).
  *
@@ -20,13 +26,17 @@ export const GET: APIRoute = async ({ request }) => {
   if (!session) {
     return new Response(JSON.stringify({ authenticated: false }), {
       status: 401,
-      headers: { "content-type": "application/json; charset=utf-8" },
+      headers: {
+        "content-type": "application/json; charset=utf-8",
+        "X-AuthCore-Contract-Version": CONTRACT_VERSION,
+      },
     });
   }
   const roles: string[] = getUserRoles(session.user);
   return new Response(
     JSON.stringify({
       authenticated: true,
+      contractVersion: CONTRACT_VERSION,
       admin: isAdminUser(session.user),
       roles,
       user: {
@@ -37,7 +47,10 @@ export const GET: APIRoute = async ({ request }) => {
     }),
     {
       status: 200,
-      headers: { "content-type": "application/json; charset=utf-8" },
+      headers: {
+        "content-type": "application/json; charset=utf-8",
+        "X-AuthCore-Contract-Version": CONTRACT_VERSION,
+      },
     },
   );
 };
